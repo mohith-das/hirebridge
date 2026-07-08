@@ -97,8 +97,8 @@ func (h *WebUIHandler) RecruiterDashboard(w http.ResponseWriter, r *http.Request
 
 	token := middleware.BearerFromRequest(r)
 	apiKey := "<generate an API key>"
-	if token != "" {
-		apiKey = fmt.Sprintf("%s", token)
+	if token != "" && len(token) > 4 {
+		apiKey = fmt.Sprintf("%s...%s", token[:4], token[len(token)-4:])
 	}
 
 	var candidateCount int
