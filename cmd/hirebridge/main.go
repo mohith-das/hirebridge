@@ -77,7 +77,7 @@ func main() {
 		fedClient := federation.NewClient()
 		fedSyncer := federation.NewSyncer(db, fedClient, fedIdent, logger, time.Minute)
 		fedDiscovery := federation.NewDiscovery(fedClient, fedIdent,
-			fedCfg.DiscoveryURL, fedCfg.InstanceName, fedCfg.Port, logger)
+			fedCfg.DiscoveryURL, fedCfg.InstanceName, fedCfg.EndpointURL, logger)
 
 		go fedSyncer.Run()
 		go fedDiscovery.Run()

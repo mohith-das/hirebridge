@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"database/sql"
 	"encoding/json"
-	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
@@ -56,16 +55,24 @@ func (h *Handler) fedAuth(next http.Handler) http.Handler {
 
 func (h *Handler) handshake(w http.ResponseWriter, r *http.Request) {
 	var req struct {
-		Name      string `json:"instance_name"`
-		PublicKey string `json:"public_key"`
+		Name        string `json:"instance_name"`
+		PublicKey   string `json:"public_key"`
+		EndpointURL string `json:"endpoint_url"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, `{"error":"invalid_request"}`, http.StatusBadRequest)
 		return
 	}
+	now := time.Now().Unix()
+	instanceID := "fed_" + req.Name
+	h.DB.Exec(
+		`INSERT OR REPLACE INTO federated_instances (id, name, endpoint_url, public_key, instance_key, is_active, last_seen_at, created_at)
+		 VALUES (?, ?, ?, ?, ?, 1, ?, ?)`,
+		instanceID, req.Name, req.EndpointURL, req.PublicKey, req.PublicKey, now, now,
+	)
 	writeJSON(w, map[string]any{
 		"accepted":    true,
-		"instance_id": fmt.Sprintf("fed_%s", req.Name),
+		"instance_id": instanceID,
 		"public_key":  h.Identity.PublicKey,
 		"version":     "1.0.0",
 	})
