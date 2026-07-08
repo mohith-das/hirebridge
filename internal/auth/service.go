@@ -45,11 +45,11 @@ func (s *Service) RequestMagicLink(email, userCode string) error {
 }
 
 func (s *Service) VerifyMagicCallback(token string) (*CallbackResult, error) {
-	mt, err := repo.ConsumeMagicToken(s.DB, token)
+	mt, consumed, err := repo.ConsumeMagicToken(s.DB, token)
 	if err != nil {
 		return nil, fmt.Errorf("consume token: %w", err)
 	}
-	if mt == nil || !mt.UsedAt.Valid || mt.ExpiresAt < time.Now().Unix() {
+	if !consumed || mt == nil {
 		return nil, nil
 	}
 

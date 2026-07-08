@@ -40,44 +40,42 @@ func InsertMagicToken(db *sql.DB, token string, userID *string, deviceCodeHash *
 	return err
 }
 
-func ConsumeMagicToken(db *sql.DB, token string) (*MagicToken, error) {
+func ConsumeMagicToken(db *sql.DB, token string) (*MagicToken, bool, error) {
 	hash := HashToken(token)
 	now := time.Now().Unix()
 
 	tx, err := db.Begin()
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 	defer tx.Rollback()
+
+	result, err := tx.Exec(
+		`UPDATE magic_tokens SET used_at = ?
+		 WHERE token_hash = ? AND used_at IS NULL AND expires_at >= ?`,
+		now, hash, now,
+	)
+	if err != nil {
+		return nil, false, err
+	}
+
+	n, err := result.RowsAffected()
+	if err != nil || n == 0 {
+		return nil, false, nil
+	}
 
 	var mt MagicToken
 	err = tx.QueryRow(
 		`SELECT token_hash, user_id, device_code_hash, expires_at, used_at
 		 FROM magic_tokens WHERE token_hash = ?`, hash,
 	).Scan(&mt.TokenHash, &mt.UserID, &mt.DeviceCodeHash, &mt.ExpiresAt, &mt.UsedAt)
-	if err == sql.ErrNoRows {
-		return nil, nil
-	}
 	if err != nil {
-		return nil, err
-	}
-
-	if mt.UsedAt.Valid || mt.ExpiresAt < now {
-		return &mt, nil
-	}
-
-	_, err = tx.Exec(
-		`UPDATE magic_tokens SET used_at = ? WHERE token_hash = ? AND used_at IS NULL`,
-		now, hash,
-	)
-	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 
 	if err := tx.Commit(); err != nil {
-		return nil, err
+		return nil, false, err
 	}
 
-	mt.UsedAt = sql.NullInt64{Int64: now, Valid: true}
-	return &mt, nil
+	return &mt, true, nil
 }
