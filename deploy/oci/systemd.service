@@ -25,7 +25,7 @@ NoNewPrivileges=yes
 PrivateTmp=yes
 ProtectSystem=strict
 ProtectHome=yes
-ReadWritePaths=/opt/hirebridge/data
+ReadWritePaths=/opt/hirebridge/data /opt/hirebridge/certs
 ReadOnlyPaths=/opt/hirebridge/hirebridge
 
 LimitNOFILE=65536
