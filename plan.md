@@ -368,6 +368,15 @@ hirebridge/
 - [x] autocert TLS wired in `main.go` — when `HB_TLS_DOMAIN` is set: :80 (ACME + redirect) + :443 (autocert); when empty: plain HTTP
 - **Verified:** binary is 13MB stripped (`-ldflags="-s -w"`), `go vet` clean, healthz 200, OAuth metadata returns correct scopes, magic link returns `{"ok":"check your email"}`
 
+### Phase 7 — API Documentation System ✅ COMPLETE (2026-07-08)
+- [x] Embedded Redoc standalone bundle (1.1MB) in static/redoc.js
+- [x] OpenAPI 3.0.3 spec covering all 13 endpoints + MCP tools + schemas
+- [x] `GET /docs` route — renders Redoc interactive docs page
+- [x] `GET /api/openapi.json` route — serves raw OpenAPI spec
+- [x] Nav bar added to landing page (Home, Docs) and dashboards (Home, Docs, Log Out)
+- [x] CSS polished: navbar, subtitle, improved spacing, ~950B
+- **Verified:** landing page renders nav; docs page loads Redoc with dark theme; openapi.json returns valid spec with 13 paths; all tests pass
+
 ---
 
 ## Decisions Log
@@ -389,3 +398,4 @@ hirebridge/
 | 2026-07-08 | **Phase 3 complete** — snapshot ingestion + ed25519 + FTS5 | canonical JSON (Go's sorted-key marshal); ed25519 verify against `nodes.public_key`; FTS5 content table (not contentless — DELETE/INSERT work normally); vec0 upsert graceful skip on macOS; `Float64ToBlob` for vec0 insert |
 | 2026-07-08 | **Phase 5 complete** — MCP surface with 3 tools | mcp-go v0.55.1; `WithStateLess(true)` for stateless POST; `WithProtectedResourceMetadata` for RFC 9728 `/.well-known/oauth-protected-resource`; BM25 + vec0 RRF fusion in SearchService; tools/list confirms 3 tools; OAuth metadata public (no auth); MCP endpoints auth via bearer middleware |
 | 2026-07-08 | **Phase 6 complete** — deploy + polish | Docker multi-stage (golang:1.23-alpine CGO → distroless-static); vec0.so fetched from official v0.1.9 release; 13MB stripped binary; autocert TLS on :80+:443 when `HB_TLS_DOMAIN` set; hardened systemd unit; CI (build+vet+test) on push/PR |
+| 2026-07-08 | **Phase 7 complete** — self-contained API docs | Redoc standalone bundle embedded (1.1MB); OpenAPI 3.0.3 spec at /api/openapi.json; interactive docs at /docs; nav bar (Home + Docs + Logout) on all pages; polished brutalist CSS (~950B); 13 endpoints + 3 MCP tools + component schemas documented |
