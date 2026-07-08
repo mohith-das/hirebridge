@@ -41,7 +41,6 @@ func (s *Server) build() http.Handler {
 	limiter := middleware.NewRateLimiter()
 
 	r.Use(chimw.RequestID)
-	r.Use(chimw.RealIP)
 	r.Use(chimw.Recoverer)
 	r.Use(s.loggingMiddleware)
 
