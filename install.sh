@@ -129,7 +129,9 @@ HB_DB_PATH=${INSTALL_DIR}/data/hirebridge.db
 HB_VEC0_PATH=/app/ext/vec0.so
 HB_EMBED_DIM=384
 HB_TLS_DOMAIN=
+HB_MAILER_PROVIDER=
 HB_RESEND_API_KEY=
+HB_PURELYMAIL_API_TOKEN=
 HB_SMTP_HOST=
 HB_SMTP_PORT=587
 HB_SMTP_USER=
@@ -279,7 +281,7 @@ do_install() {
   log "Next steps:"
   log "  1. Edit ${INSTALL_DIR}/.env"
   log "  2. Set HB_BASE_URL and HB_TLS_DOMAIN"
-  log "  3. Configure email (HB_RESEND_API_KEY or HB_SMTP_*)"
+	log "  3. Configure email (HB_MAILER_PROVIDER + HB_RESEND_API_KEY / HB_PURELYMAIL_API_TOKEN / HB_SMTP_*)"
   log ""
   if [[ "$NO_SYSTEMD" != "1" ]]; then
     log "  Service: systemctl status hirebridge"

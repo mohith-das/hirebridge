@@ -54,12 +54,14 @@ func main() {
 	logger.Info("virtual tables ready")
 
 	mailer := auth.NewMailer(auth.MailerConfig{
-		ResendAPIKey: cfg.ResendAPIKey,
-		SMTPHost:     cfg.SMTPHost,
-		SMTPPort:     cfg.SMTPPort,
-		SMTPUser:     cfg.SMTPUser,
-		SMTPPass:     cfg.SMTPPass,
-		SMTPFrom:     cfg.SMTPFrom,
+		Provider:           cfg.MailerProvider,
+		ResendAPIKey:       cfg.ResendAPIKey,
+		PurelymailAPIToken: cfg.PurelymailAPIToken,
+		SMTPHost:           cfg.SMTPHost,
+		SMTPPort:           cfg.SMTPPort,
+		SMTPUser:           cfg.SMTPUser,
+		SMTPPass:           cfg.SMTPPass,
+		SMTPFrom:           cfg.SMTPFrom,
 	}, logger)
 
 	authSvc := auth.NewService(db, mailer, cfg.BaseURL, cfg.MagicTTL)
