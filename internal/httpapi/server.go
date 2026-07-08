@@ -92,6 +92,7 @@ func (s *Server) build() http.Handler {
 	r.With(dashAuth).Get("/dashboard", webH.DashboardRedirect)
 	r.With(dashAuth).Get("/dashboard/talent", webH.TalentDashboard)
 	r.With(dashAuth).Get("/dashboard/recruiter", webH.RecruiterDashboard)
+	r.With(dashAuth).Post("/dashboard/recruiter/apikey", webH.GenerateAPIKey)
 
 	nodeAuth := middleware.Auth(s.cfg.DB, s.cfg.Logger, s.cfg.BaseURL)
 	r.With(nodeAuth).Post("/api/nodes/{nodeID}/revoke", webH.RevokeNode)

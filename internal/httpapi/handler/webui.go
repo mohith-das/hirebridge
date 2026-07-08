@@ -2,7 +2,6 @@ package handler
 
 import (
 	"database/sql"
-	"fmt"
 	"log/slog"
 	"net/http"
 	"time"
@@ -95,12 +94,6 @@ func (h *WebUIHandler) RecruiterDashboard(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	token := middleware.BearerFromRequest(r)
-	apiKey := "<generate an API key>"
-	if token != "" && len(token) > 4 {
-		apiKey = fmt.Sprintf("%s...%s", token[:4], token[len(token)-4:])
-	}
-
 	var candidateCount int
 	h.DB.QueryRow(`SELECT count(*) FROM snapshots`).Scan(&candidateCount)
 
@@ -130,11 +123,43 @@ func (h *WebUIHandler) RecruiterDashboard(w http.ResponseWriter, r *http.Request
 	}
 
 	render.HTML(w, "recruiter_dashboard.html", map[string]any{
-		"APIKey":         apiKey,
+		"FreshToken":     "",
 		"BaseURL":        h.BaseURL,
 		"TalentCount":    candidateCount,
 		"NodeCount":      activeNodeCount,
 		"RecentActivity": activity,
+	})
+}
+
+func (h *WebUIHandler) GenerateAPIKey(w http.ResponseWriter, r *http.Request) {
+	userID := middleware.UserIDFromContext(r.Context())
+	if userID == "" {
+		http.Redirect(w, r, "/", http.StatusSeeOther)
+		return
+	}
+
+	rawToken, _, err := repo.CreateAPIToken(h.DB, userID, nil, "mcp-api", "all")
+	if err != nil {
+		h.Logger.Error("api key generation failed", "error", err, "user_id", userID)
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+
+	repo.InsertAuditLog(h.DB, userID, "apikey_generated", "mcp-api")
+
+	var candidateCount int
+	h.DB.QueryRow(`SELECT count(*) FROM snapshots`).Scan(&candidateCount)
+
+	var activeNodeCount int
+	h.DB.QueryRow(`SELECT count(*) FROM nodes WHERE is_active=1 AND last_ping_timestamp > ?`,
+		time.Now().Add(-h.StaleAge).Unix()).Scan(&activeNodeCount)
+
+	render.HTML(w, "recruiter_dashboard.html", map[string]any{
+		"FreshToken":     rawToken,
+		"BaseURL":        h.BaseURL,
+		"TalentCount":    candidateCount,
+		"NodeCount":      activeNodeCount,
+		"RecentActivity": nil,
 	})
 }
 

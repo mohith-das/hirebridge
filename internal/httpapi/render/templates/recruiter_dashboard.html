@@ -11,8 +11,16 @@
 
 <h2>MCP API Key</h2>
 <p>Paste this into Claude Desktop to connect your HireBridge MCP server.</p>
-<pre id="mcp-key" style="cursor:pointer;user-select:all">{{if .APIKey}}{{.APIKey}}{{else}}No API key generated yet. Log in via magic link first.{{end}}</pre>
+{{if .FreshToken}}
+<p class="warn"><strong>Copy this key now — it will not be shown again.</strong></p>
+<pre id="mcp-key" style="cursor:pointer;user-select:all">{{.FreshToken}}</pre>
 <button onclick="navigator.clipboard.writeText(document.getElementById('mcp-key').innerText.replace(/\\n/g,''))">Copy</button>
+{{else}}
+<pre>No MCP API key generated yet.</pre>
+<form method="post" action="/dashboard/recruiter/apikey">
+<button type="submit">Generate MCP API Key</button>
+</form>
+{{end}}
 
 <h2>MCP Endpoint</h2>
 <pre>{{.BaseURL}}/mcp</pre>
