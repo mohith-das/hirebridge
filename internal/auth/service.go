@@ -68,6 +68,8 @@ func (s *Service) VerifyMagicCallback(token string) (*CallbackResult, error) {
 		return nil, fmt.Errorf("create user token: %w", err)
 	}
 
+	repo.InsertAuditLog(s.DB, userID, "login", "magic-link")
+
 	return &CallbackResult{AccessToken: rawToken, UserID: userID}, nil
 }
 
@@ -96,6 +98,8 @@ func (s *Service) approveDevice(codeHash, userID string) (*CallbackResult, error
 	if err := repo.SetNodeUser(s.DB, ds.NodeID.String, userID); err != nil {
 		return nil, fmt.Errorf("set node user: %w", err)
 	}
+
+	repo.InsertAuditLog(s.DB, userID, "device_approved", ds.NodeID.String)
 
 	return &CallbackResult{
 		AccessToken:    rawToken,

@@ -135,6 +135,7 @@ func (s *MCPServer) handleRequestIntroduction(ctx context.Context, req mcp.CallT
 	if err := repo.InsertIntroductionRequest(s.DB, requestID, candidateID, recruiterUserID, nodeID); err != nil {
 		s.SearchSvc.Logger.Warn("failed to persist intro request", "error", err)
 	}
+	repo.InsertAuditLog(s.DB, recruiterUserID, "intro_requested", candidateID)
 
 	result := map[string]any{
 		"request_id":          requestID,
