@@ -11,6 +11,7 @@ import (
 	chimw "github.com/go-chi/chi/v5/middleware"
 
 	"hirebridge/internal/auth"
+	"hirebridge/internal/httpapi/api"
 	"hirebridge/internal/httpapi/handler"
 	"hirebridge/internal/httpapi/middleware"
 	"hirebridge/internal/httpapi/render"
@@ -87,6 +88,12 @@ func (s *Server) build() http.Handler {
 	r.With(strictAuth).Post("/ingest/snapshot", ingestH.Snapshot)
 
 	r.Get("/", webH.Landing)
+	r.Get("/docs", webH.Docs)
+
+	r.Get("/api/openapi.json", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write(api.Spec())
+	})
 
 	dashAuth := middleware.OptionalAuth(s.cfg.DB, s.cfg.Logger)
 	r.With(dashAuth).Get("/dashboard", webH.DashboardRedirect)

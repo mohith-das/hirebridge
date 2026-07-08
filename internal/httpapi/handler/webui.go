@@ -24,6 +24,10 @@ func (h *WebUIHandler) Landing(w http.ResponseWriter, r *http.Request) {
 	render.HTML(w, "landing.html", nil)
 }
 
+func (h *WebUIHandler) Docs(w http.ResponseWriter, r *http.Request) {
+	render.HTML(w, "docs.html", nil)
+}
+
 func (h *WebUIHandler) DashboardRedirect(w http.ResponseWriter, r *http.Request) {
 	userID := middleware.UserIDFromContext(r.Context())
 	if userID == "" {

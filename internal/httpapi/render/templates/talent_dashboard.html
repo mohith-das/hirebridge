@@ -7,6 +7,13 @@
 <link rel="stylesheet" href="/static/brutalist.css">
 </head>
 <body>
+<nav class="navbar">
+  <a href="/" class="nav-brand">HireBridge</a>
+  <a href="/docs">Docs</a>
+  <form method="post" action="/auth/logout" style="display:inline">
+  <button type="submit" class="nav-btn">Log Out</button>
+  </form>
+</nav>
 <h1>Your Connected Nodes</h1>
 
 {{if .Nodes}}
@@ -35,10 +42,6 @@
 
 <p style="margin-top:2rem">
 <a href="/dashboard/recruiter">Recruiter Dashboard</a>
-&middot;
-<form method="post" action="/auth/logout" style="display:inline">
-<button type="submit" style="background:none;border:none;color:#0cf;cursor:pointer;font-size:inherit;padding:0">Log Out</button>
-</form>
 </p>
 </body>
 </html>

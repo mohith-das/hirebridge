@@ -1,0 +1,543 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "HireBridge API",
+    "version": "1.0.0",
+    "description": "The Decentralized AI Talent Bridge — REST + MCP API for connecting recruiter AI agents to candidate-owned data.\n\n## Auth\n\nHireBridge uses **opaque bearer tokens** (SHA-256 hashed at rest). Obtain a token via:\n\n- **Web UI:** Magic link → session cookie (`hb_token`)\n- **CLI:** OAuth 2.1 Device Authorization Grant (RFC 8628)\n\nAll authenticated endpoints accept `Authorization: Bearer <token>` **or** the `hb_token` session cookie.\n\n## MCP Tools\n\nThe `/mcp` endpoint serves the three MCP tools listed below. Use `tools/list` to discover them and `tools/call` to invoke."
+  },
+  "servers": [
+    { "url": "https://hirebridge.example.com", "description": "Production" },
+    { "url": "http://localhost:8080", "description": "Local dev" }
+  ],
+  "tags": [
+    { "name": "Health", "description": "Liveness and readiness" },
+    { "name": "Auth", "description": "Magic link and Device Authorization Grant" },
+    { "name": "Ingestion", "description": "Snapshot push from edge nodes" },
+    { "name": "MCP", "description": "Model Context Protocol tools for AI agents" },
+    { "name": "Dashboard", "description": "Authenticated web UI operations" },
+    { "name": "Discovery", "description": "OAuth 2.1 metadata" }
+  ],
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "Opaque bearer token. Obtain via magic link or device flow."
+      }
+    },
+    "schemas": {
+      "Error": {
+        "type": "object",
+        "properties": {
+          "error": { "type": "string", "description": "Machine-readable error code" }
+        }
+      },
+      "DeviceInitRequest": {
+        "type": "object",
+        "properties": {
+          "node_type": { "type": "string", "enum": ["JobOps","LivingCV"], "description": "Type of edge node to provision" },
+          "endpoint_url": { "type": "string", "format": "uri", "description": "URL of the edge node" }
+        }
+      },
+      "DeviceInitResponse": {
+        "type": "object",
+        "properties": {
+          "device_code": { "type": "string", "description": "High-entropy code the CLI uses to poll" },
+          "user_code": { "type": "string", "description": "Short human-readable code (8 chars, XXXX-XXXX)" },
+          "verification_uri": { "type": "string", "format": "uri", "description": "URL the user visits to approve" },
+          "verification_uri_complete": { "type": "string", "format": "uri", "description": "URL with user_code pre-filled" },
+          "expires_in": { "type": "integer", "description": "Lifetime in seconds (default 900)" },
+          "interval": { "type": "integer", "description": "Minimum poll interval in seconds (default 5)" }
+        }
+      },
+      "TokenSuccessResponse": {
+        "type": "object",
+        "properties": {
+          "access_token": { "type": "string", "description": "Opaque bearer token" },
+          "token_type": { "type": "string", "example": "Bearer" },
+          "scope": { "type": "string", "description": "all (user) or node:push (edge node)" },
+          "node_id": { "type": "string", "description": "Provisioned node ID (only when a node was provisioned)" },
+          "expires_in": { "type": "integer" }
+        }
+      },
+      "TokenErrorResponse": {
+        "type": "object",
+        "properties": {
+          "error": { "type": "string" },
+          "interval": { "type": "integer" }
+        }
+      },
+      "SnapshotRequest": {
+        "type": "object",
+        "required": ["candidate_id", "payload"],
+        "properties": {
+          "candidate_id": { "type": "string", "description": "Unique candidate identifier" },
+          "payload": { "type": "object", "description": "Career packet as JSON (max 1MB). Signed by the edge node over these exact bytes." },
+          "embedding": {
+            "type": "array",
+            "items": {
+              "type": "array",
+              "items": { "type": "number", "format": "float" }
+            },
+            "description": "384-dim float32 vector for semantic search. Only first vector used."
+          },
+          "signature": { "type": "string", "description": "ed25519 signature (hex-encoded) over the exact payload bytes. Required when the node has a public key. The embedding field is NOT signed." }
+        }
+      },
+      "SnapshotResponse": {
+        "type": "object",
+        "properties": {
+          "status": { "type": "string", "example": "accepted" }
+        }
+      },
+      "SearchTalentArgs": {
+        "type": "object",
+        "required": ["query"],
+        "properties": {
+          "query": { "type": "string", "description": "Search keywords (skills, titles, text). BM25 FTS5 match." },
+          "limit": { "type": "integer", "maximum": 100, "default": 20, "description": "Max results returned" },
+          "query_vector": {
+            "type": "array",
+            "items": { "type": "number", "format": "float" },
+            "description": "Optional 384-dim float vector for semantic re-ranking (vec0 KNN). If omitted, pure BM25 ranking."
+          }
+        }
+      },
+      "TalentPointer": {
+        "type": "object",
+        "properties": {
+          "candidate_id": { "type": "string" },
+          "node_id": { "type": "string" },
+          "endpoint_url": { "type": "string", "format": "uri" },
+          "display_name": { "type": "string" },
+          "snippet": { "type": "string", "description": "FTS5 highlight snippet" },
+          "bm25_score": { "type": "number", "description": "BM25 relevance score (lower is better)" },
+          "vec_score": { "type": "number", "description": "Vector KNN distance (lower is better). Only present when query_vector supplied." },
+          "rank": { "type": "integer", "description": "1-based final rank after RRF fusion" },
+          "last_sync": { "type": "integer", "description": "Unix timestamp of last snapshot push" },
+          "is_active": { "type": "boolean", "description": "Whether the edge node is online" }
+        }
+      },
+      "TalentProfile": {
+        "type": "object",
+        "properties": {
+          "candidate_id": { "type": "string" },
+          "node_id": { "type": "string" },
+          "endpoint_url": { "type": "string", "format": "uri" },
+          "payload": { "type": "object", "description": "Full career-packet.json snapshot" },
+          "signature": { "type": "string", "description": "ed25519 signature (hex) over the payload bytes" },
+          "public_key": { "type": "string", "description": "ed25519 public key (hex) of the edge node" },
+          "ingested_at": { "type": "integer" }
+        }
+      },
+      "IntroRequestResult": {
+        "type": "object",
+        "properties": {
+          "request_id": { "type": "string", "description": "Unique introduction request ID" },
+          "status": { "type": "string", "example": "queued" },
+          "candidate_id": { "type": "string" },
+          "recruiter_identity": { "type": "string" },
+          "node_id": { "type": "string", "description": "Target edge node ID" },
+          "delivered": { "type": "boolean", "description": "Always false — outbound delivery is not implemented" }
+        }
+      },
+      "OAuthMetadata": {
+        "type": "object",
+        "properties": {
+          "resource": { "type": "string", "format": "uri" },
+          "authorization_servers": { "type": "array", "items": { "type": "string", "format": "uri" } },
+          "scopes_supported": { "type": "array", "items": { "type": "string" } }
+        }
+      }
+    }
+  },
+  "security": [{ "bearerAuth": [] }],
+  "paths": {
+    "/healthz": {
+      "get": {
+        "tags": ["Health"],
+        "summary": "Liveness check",
+        "operationId": "healthz",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Server is running",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": { "ok": { "type": "boolean", "example": true } }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/request": {
+      "post": {
+        "tags": ["Auth"],
+        "summary": "Request magic link",
+        "description": "Sends a single-use login link to the provided email. Rate-limited: 5/15min per email, 10/15min per IP.",
+        "operationId": "requestMagicLink",
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "type": "object",
+                "required": ["email"],
+                "properties": {
+                  "email": { "type": "string", "format": "email", "description": "Email address to send the link to" },
+                  "uc": { "type": "string", "description": "Device flow user code (optional). Links this magic link to a pending device session." }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Link sent (or would be sent in dev/noop mode)",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/SnapshotResponse" }
+              }
+            }
+          },
+          "400": {
+            "description": "Email required",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } }
+          },
+          "429": {
+            "description": "Rate limited",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } }
+          }
+        }
+      }
+    },
+    "/auth/callback": {
+      "get": {
+        "tags": ["Auth"],
+        "summary": "Magic link callback",
+        "description": "Validates the single-use magic token. Sets `hb_token` HttpOnly Secure SameSite=Strict cookie and redirects to the dashboard or device confirmation page.",
+        "operationId": "magicLinkCallback",
+        "security": [],
+        "parameters": [
+          {
+            "name": "token",
+            "in": "query",
+            "required": true,
+            "schema": { "type": "string" },
+            "description": "The magic link token from the email"
+          }
+        ],
+        "responses": {
+          "303": {
+            "description": "Redirect to /dashboard (web login) or /device?approved=1 (device flow confirmation)",
+            "headers": {
+              "Set-Cookie": {
+                "schema": { "type": "string" },
+                "description": "hb_token=<bearer>; Path=/; HttpOnly; SameSite=Strict"
+              }
+            }
+          },
+          "400": { "description": "Invalid or expired token" }
+        }
+      }
+    },
+    "/auth/logout": {
+      "post": {
+        "tags": ["Auth"],
+        "summary": "Logout",
+        "description": "Revokes the current token and clears the session cookie.",
+        "operationId": "logout",
+        "responses": {
+          "200": {
+            "description": "Logged out",
+            "content": {
+              "application/json": {
+                "schema": { "type": "object", "properties": { "ok": { "type": "string" } } }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/device": {
+      "post": {
+        "tags": ["Auth"],
+        "summary": "Initiate device authorization (RFC 8628)",
+        "description": "Starts the OAuth 2.1 Device Authorization Grant. Creates a device session and optionally provisions an edge node. The CLI polls /auth/token until the user approves via the magic link flow.",
+        "operationId": "initiateDeviceFlow",
+        "security": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/DeviceInitRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Device flow initiated",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/DeviceInitResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/token": {
+      "post": {
+        "tags": ["Auth"],
+        "summary": "Device flow token endpoint (RFC 8628)",
+        "description": "Polls for the status of a device authorization. Returns the long-lived bearer token once the user has approved via the magic link.",
+        "operationId": "deviceToken",
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "type": "object",
+                "required": ["grant_type","device_code"],
+                "properties": {
+                  "grant_type": {
+                    "type": "string",
+                    "enum": ["urn:ietf:params:oauth:grant-type:device_code"]
+                  },
+                  "device_code": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Token issued (device approved and consumed)",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/TokenSuccessResponse" } } }
+          },
+          "400": {
+            "description": "authorization_pending / slow_down / expired_token / access_denied",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/TokenErrorResponse" } } }
+          }
+        }
+      }
+    },
+    "/ingest/snapshot": {
+      "post": {
+        "tags": ["Ingestion"],
+        "summary": "Push signed career-packet snapshot",
+        "description": "Authenticated by a node bearer (scope: node:push). Verifies the ed25519 signature if the node has a public key. Upserts the snapshot, syncs FTS5 index, and upserts the vec0 embedding.",
+        "operationId": "ingestSnapshot",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/SnapshotRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Snapshot accepted",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SnapshotResponse" } } }
+          },
+          "401": { "description": "Missing or invalid token. Includes WWW-Authenticate header." },
+          "403": { "description": "Token lacks node:push scope or node_id is empty." },
+          "500": { "description": "Ingest failed (signature verification, DB error, payload too large)." }
+        }
+      }
+    },
+    "/mcp": {
+      "post": {
+        "tags": ["MCP"],
+        "summary": "MCP Streamable HTTP (JSON-RPC 2.0)",
+        "description": "Model Context Protocol endpoint. Accepts JSON-RPC 2.0 requests for `tools/list` and `tools/call`. Requires a bearer token with scope `all` or `talent:search`. Stateless — no session required.\n\n## Tools\n\n### search_talent\nSearch the talent network by keyword. Returns ranked pointers to candidate profiles across connected nodes.\n- **query** (string, required) — Search keywords\n- **limit** (integer, optional, default 20, max 100) — Max results\n- **query_vector** (number[], optional) — 384-dim float vector for vec0 semantic re-ranking\n\n### get_talent_profile\nRetrieve the full cached career packet for a candidate.\n- **candidate_id** (string, required) — The candidate ID from search_talent results\n\n### request_introduction\nRequest an introduction to a candidate. Creates a persisted introduction request.\n- **candidate_id** (string, required)\n- **recruiter_identity** (string, required) — Your name and contact info",
+        "operationId": "mcpPost",
+        "responses": {
+          "200": {
+            "description": "JSON-RPC response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "jsonrpc": { "type": "string" },
+                    "id": { "type": "integer" },
+                    "result": { "type": "object" }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid token. Includes WWW-Authenticate: Bearer resource_metadata=\".../\" header.",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } }
+          },
+          "403": {
+            "description": "Token has insufficient scope (e.g., node:push token used on /mcp). Requires scope 'all' or 'talent:search'.",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } }
+          }
+        }
+      },
+      "get": {
+        "tags": ["MCP"],
+        "summary": "MCP SSE (disabled in stateless mode)",
+        "operationId": "mcpGet",
+        "responses": {
+          "405": { "description": "Method not allowed in stateless mode" }
+        }
+      },
+      "delete": {
+        "tags": ["MCP"],
+        "summary": "MCP session delete",
+        "operationId": "mcpDelete",
+        "responses": {
+          "200": { "description": "Session deleted (no-op in stateless mode)" }
+        }
+      }
+    },
+    "/dashboard/recruiter/apikey": {
+      "post": {
+        "tags": ["Dashboard"],
+        "summary": "Generate MCP API key",
+        "description": "Mints a new bearer token (label: mcp-api, scope: all) for use with the MCP endpoint. The raw token is shown exactly once in the response HTML.",
+        "operationId": "generateAPIKey",
+        "responses": {
+          "200": {
+            "description": "HTML page with the raw token (show-once)",
+            "content": { "text/html": { "schema": { "type": "string" } } }
+          },
+          "302": { "description": "Redirect to / if not authenticated" }
+        }
+      }
+    },
+    "/api/nodes/{nodeID}/revoke": {
+      "post": {
+        "tags": ["Dashboard"],
+        "summary": "Revoke a node",
+        "description": "Sets a node to inactive and records the revocation timestamp. Only the node owner can revoke.",
+        "operationId": "revokeNode",
+        "parameters": [
+          {
+            "name": "nodeID",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" },
+            "description": "Node ID to revoke"
+          }
+        ],
+        "responses": {
+          "303": { "description": "Redirect to /dashboard/talent" },
+          "401": { "description": "Not authenticated" },
+          "404": { "description": "Node not found or owned by different user" }
+        }
+      }
+    },
+    "/.well-known/oauth-protected-resource": {
+      "get": {
+        "tags": ["Discovery"],
+        "summary": "OAuth 2.1 resource server metadata (RFC 9728)",
+        "operationId": "oauthMetadata",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Resource server metadata",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/OAuthMetadata" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/.well-known/oauth-authorization-server": {
+      "get": {
+        "tags": ["Discovery"],
+        "summary": "OAuth 2.1 authorization server metadata",
+        "description": "HireBridge acts as both the resource server and the authorization server.",
+        "operationId": "oauthAuthServer",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Authorization server metadata",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "issuer": { "type": "string", "format": "uri" },
+                    "device_authorization_endpoint": { "type": "string", "format": "uri" },
+                    "token_endpoint": { "type": "string", "format": "uri" },
+                    "grant_types_supported": {
+                      "type": "array",
+                      "items": { "type": "string" }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/device": {
+      "get": {
+        "tags": ["Auth"],
+        "summary": "Device verification page (SSR HTML)",
+        "description": "Server-side rendered HTML page where users enter their device user_code and verify or approve a pending device session.",
+        "operationId": "deviceVerificationPage",
+        "security": [],
+        "parameters": [
+          {
+            "name": "uc",
+            "in": "query",
+            "schema": { "type": "string" },
+            "description": "Device user code (e.g., XXXX-XXXX)"
+          },
+          {
+            "name": "approved",
+            "in": "query",
+            "schema": { "type": "string" },
+            "description": "Set to '1' after successful approval"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "HTML verification page",
+            "content": { "text/html": { "schema": { "type": "string" } } }
+          }
+        }
+      },
+      "post": {
+        "tags": ["Auth"],
+        "summary": "Approve device session",
+        "description": "Logged-in users approve a pending device session by user_code.",
+        "operationId": "approveDevice",
+        "requestBody": {
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "type": "object",
+                "required": ["uc"],
+                "properties": {
+                  "uc": { "type": "string", "description": "Device user code" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "303": { "description": "Redirect to /device?uc=...&approved=1" },
+          "400": { "description": "Invalid or missing user_code" },
+          "401": { "description": "Not authenticated" }
+        }
+      }
+    }
+  }
+}
