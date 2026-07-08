@@ -38,16 +38,16 @@ func (s *IngestService) Process(nodeID string, input *SnapshotInput) error {
 		return fmt.Errorf("node is inactive or revoked")
 	}
 
-	canonical, err := crypto.CanonicalJSON(input.Payload)
-	if err != nil {
-		return fmt.Errorf("canonical json: %w", err)
+	payloadBytes := []byte(input.Payload)
+	if len(payloadBytes) > 1<<20 {
+		return fmt.Errorf("payload too large: %d bytes, max 1MB", len(payloadBytes))
 	}
 
 	if n.PublicKey != nil && len(n.PublicKey) > 0 {
 		if input.Signature == "" {
 			return fmt.Errorf("signature required when node has a public key")
 		}
-		valid, err := crypto.VerifySignature(n.PublicKey, canonical, input.Signature)
+		valid, err := crypto.VerifySignature(n.PublicKey, payloadBytes, input.Signature)
 		if err != nil {
 			return fmt.Errorf("verify signature: %w", err)
 		}
@@ -61,9 +61,6 @@ func (s *IngestService) Process(nodeID string, input *SnapshotInput) error {
 	}
 
 	payloadJSON := string(input.Payload)
-	if len(payloadJSON) > 1<<20 {
-		return fmt.Errorf("payload too large: %d bytes, max 1MB", len(payloadJSON))
-	}
 
 	var sigBytes []byte
 	if input.Signature != "" {

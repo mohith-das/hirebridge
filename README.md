@@ -60,7 +60,7 @@ HireBridge is designed to run on **the smallest possible machine**—1 vCPU, 1 G
 
 **No token passthrough.** A recruiter's MCP bearer token is accepted *only* at HireBridge's `/mcp` boundary. Outbound calls to candidate edge nodes (e.g., introduction requests) are made with HireBridge's own credentials—the recruiter's token is never forwarded. This prevents a compromised or malicious client from impersonating a recruiter on a candidate's self-hosted node.
 
-**Data provenance via ed25519.** Every snapshot pushed to HireBridge must carry an ed25519 signature over the canonical JSON of the career packet. HireBridge verifies this signature against the node's public key before caching. A recruiter retrieving `get_talent_profile` receives both the payload and the signature, enabling independent verification.
+**Data provenance via ed25519.** Every snapshot pushed to HireBridge carries an ed25519 signature over the exact transmitted payload bytes (not subject to server-side re-encoding). The `embedding` field is intentionally not covered by the signature. HireBridge verifies the signature against the node's public key before caching. A recruiter retrieving `get_talent_profile` receives both the payload and the signature, enabling independent verification.
 
 **Passwordless authentication.** No passwords are stored—ever. The web UI uses single-use magic links sent via email (Resend or SMTP). The CLI uses the OAuth 2.1 Device Authorization Grant: a short user code displayed in the terminal is approved via the browser. Long-lived tokens are opaque (SHA-256 hashed at rest) and revocable from the dashboard.
 

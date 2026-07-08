@@ -3,14 +3,14 @@ package crypto
 import (
 	"crypto/ed25519"
 	"encoding/hex"
-	"encoding/json"
 	"fmt"
 )
 
-func CanonicalJSON(v any) ([]byte, error) {
-	return json.Marshal(v)
-}
-
+// VerifySignature checks an ed25519 signature over the exact message bytes.
+//
+// Contract: the node transmits a JSON payload as raw bytes. HireBridge verifies
+// the signature over those exact bytes without reformatting or re-marshaling.
+// The embedding field is not covered by the signature.
 func VerifySignature(pubKey []byte, message []byte, sigHex string) (bool, error) {
 	if pubKey == nil || len(pubKey) != ed25519.PublicKeySize {
 		return false, fmt.Errorf("invalid public key")
