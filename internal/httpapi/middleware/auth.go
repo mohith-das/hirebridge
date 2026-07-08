@@ -35,12 +35,12 @@ func ScopeFromContext(ctx context.Context) string {
 	return v
 }
 
-func writeUnauthorized(w http.ResponseWriter, baseURL string) {
+func writeUnauthorized(w http.ResponseWriter, baseURL, code string) {
 	w.Header().Set("WWW-Authenticate",
 		fmt.Sprintf(`Bearer resource_metadata="%s/.well-known/oauth-protected-resource"`, baseURL))
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusUnauthorized)
-	w.Write([]byte(`{"error":"missing_token"}`))
+	w.Write([]byte(fmt.Sprintf(`{"error":"%s"}`, code)))
 }
 
 func Auth(db *sql.DB, logger *slog.Logger, baseURL string) func(http.Handler) http.Handler {
@@ -48,7 +48,7 @@ func Auth(db *sql.DB, logger *slog.Logger, baseURL string) func(http.Handler) ht
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			token := extractBearer(r)
 			if token == "" {
-				writeUnauthorized(w, baseURL)
+				writeUnauthorized(w, baseURL, "missing_token")
 				return
 			}
 
@@ -59,7 +59,7 @@ func Auth(db *sql.DB, logger *slog.Logger, baseURL string) func(http.Handler) ht
 				return
 			}
 			if at == nil {
-				writeUnauthorized(w, baseURL)
+				writeUnauthorized(w, baseURL, "invalid_token")
 				return
 			}
 
