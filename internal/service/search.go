@@ -57,9 +57,11 @@ func (s *SearchService) SearchTalent(query string, limit int, queryVector []floa
 	}
 
 	vecScores := make(map[string]float64)
+	var vecHits []repo.SearchHit
 	if len(queryVector) > 0 {
 		blob := repo.Float64ToBlob(queryVector)
-		vecHits, err := repo.Vec0Search(s.DB, blob, limit*2)
+		var err error
+		vecHits, err = repo.Vec0Search(s.DB, blob, limit*2)
 		if err != nil {
 			s.Logger.Warn("vec0 search failed, falling back to BM25 only", "error", err)
 		} else {
@@ -79,6 +81,21 @@ func (s *SearchService) SearchTalent(query string, limit int, queryVector []floa
 	}
 
 	useFusion := len(vecScores) > 0
+
+	bm25Rank := make(map[string]int) // 1-based rank by BM25 score (lower=better)
+	vecRank := make(map[string]int)  // 1-based rank by vec distance (lower=better)
+
+	if useFusion {
+		sort.Slice(bm25Hits, func(i, j int) bool { return bm25Hits[i].BM25Score < bm25Hits[j].BM25Score })
+		for i, h := range bm25Hits {
+			bm25Rank[h.CandidateID] = i + 1
+		}
+		sort.Slice(vecHits, func(i, j int) bool { return vecHits[i].VecScore < vecHits[j].VecScore })
+		for i, h := range vecHits {
+			vecRank[h.CandidateID] = i + 1
+		}
+	}
+
 	var pointers []TalentPointer
 	for _, cid := range allIDs {
 		si, ok := info[cid]
@@ -103,8 +120,11 @@ func (s *SearchService) SearchTalent(query string, limit int, queryVector []floa
 	}
 
 	if useFusion {
+		k := 60.0
 		sort.Slice(pointers, func(i, j int) bool {
-			return rrf(pointers[i].BM25Score, pointers[i].VecScore) > rrf(pointers[j].BM25Score, pointers[j].VecScore)
+			ri := rrfScore(k, bm25Rank[pointers[i].CandidateID], vecRank[pointers[i].CandidateID])
+			rj := rrfScore(k, bm25Rank[pointers[j].CandidateID], vecRank[pointers[j].CandidateID])
+			return ri > rj
 		})
 	} else {
 		sort.Slice(pointers, func(i, j int) bool {
@@ -122,9 +142,15 @@ func (s *SearchService) SearchTalent(query string, limit int, queryVector []floa
 	return &SearchResult{Candidates: pointers}, nil
 }
 
-func rrf(bm25, vec float64) float64 {
-	k := 60.0
-	return 1/(k+bm25) + 1/(k+vec)
+func rrfScore(k float64, bm25Rank, vecRank int) float64 {
+	var score float64
+	if bm25Rank > 0 {
+		score += 1 / (k + float64(bm25Rank))
+	}
+	if vecRank > 0 {
+		score += 1 / (k + float64(vecRank))
+	}
+	return score
 }
 
 func (s *SearchService) GetTalentProfile(candidateID string) (*TalentProfile, error) {
