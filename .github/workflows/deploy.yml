@@ -36,18 +36,38 @@ jobs:
             hirebridge \
             ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:/opt/hirebridge/hirebridge.new
 
-      - name: Swap binary and restart
+      - name: Write config and restart
         run: |
-          ssh -i ~/.ssh/deploy_key ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} <<'REMOTE'
-            set -e
-            systemctl stop hirebridge || true
-            mv /opt/hirebridge/hirebridge.new /opt/hirebridge/hirebridge
-            chmod +x /opt/hirebridge/hirebridge
-            chown hirebridge:hirebridge /opt/hirebridge/hirebridge
-            systemctl start hirebridge
-            sleep 2
-            systemctl status hirebridge --no-pager | head -5
-          REMOTE
+          ssh -i ~/.ssh/deploy_key ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} \
+            "sudo tee /opt/hirebridge/.env > /dev/null && \
+             sudo chmod 600 /opt/hirebridge/.env && \
+             sudo chown hirebridge:hirebridge /opt/hirebridge/.env && \
+             sudo systemctl stop hirebridge || true && \
+             sudo mv /opt/hirebridge/hirebridge.new /opt/hirebridge/hirebridge && \
+             sudo chmod +x /opt/hirebridge/hirebridge && \
+             sudo chown hirebridge:hirebridge /opt/hirebridge/hirebridge && \
+             sudo systemctl start hirebridge && \
+             sleep 2 && \
+             sudo systemctl status hirebridge --no-pager | head -5" <<ENVEOF
+HB_BASE_URL=https://hirebridge.dev
+HB_LISTEN=:8080
+HB_DB_PATH=/opt/hirebridge/data/hirebridge.db
+HB_VEC0_PATH=/app/ext/vec0.so
+HB_EMBED_DIM=384
+HB_TLS_DOMAIN=hirebridge.dev
+HB_MAILER_PROVIDER=smtp
+HB_SMTP_HOST=smtp.purelymail.com
+HB_SMTP_PORT=587
+HB_SMTP_USER=noreply@hirebridge.dev
+HB_SMTP_PASS=${{ secrets.SMTP_PASS }}
+HB_SMTP_FROM=noreply@hirebridge.dev
+HB_FEDERATION_ENABLED=true
+HB_FEDERATION_PORT=:8400
+HB_FEDERATION_INSTANCE_NAME=hirebridge-dev
+HB_FEDERATION_ENDPOINT=http://hirebridge.dev:8400
+HB_FEDERATION_DISCOVERY_URL=http://hirebridge.dev:8400
+HB_FEDERATION_SYNC_INTERVAL=5m
+ENVEOF
 
       - name: Health check
         run: |
