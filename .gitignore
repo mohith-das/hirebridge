@@ -1,5 +1,5 @@
 # Binaries
-hirebridge
+/hirebridge
 *.exe
 *.dll
 *.dylib
