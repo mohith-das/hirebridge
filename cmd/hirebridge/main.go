@@ -13,6 +13,7 @@ import (
 
 	"hirebridge/internal/auth"
 	"hirebridge/internal/config"
+	"hirebridge/internal/federation"
 	"hirebridge/internal/httpapi"
 	"hirebridge/internal/logging"
 	"hirebridge/internal/service"
@@ -64,6 +65,30 @@ func main() {
 	authSvc := auth.NewService(db, mailer, cfg.BaseURL, cfg.MagicTTL)
 	ingestSvc := service.NewIngestService(db, logger)
 	searchSvc := service.NewSearchService(db, logger, cfg.EmbedDim)
+
+	fedCfg := federation.LoadConfig(cfg)
+	if fedCfg.Enabled {
+		fedIdent, err := federation.LoadOrCreateIdentity(fedCfg.KeyPath)
+		if err != nil {
+			logger.Error("failed to load federation identity", "error", err)
+			os.Exit(1)
+		}
+		fedHandler := federation.NewHandler(db, fedIdent, logger, fedCfg)
+		fedClient := federation.NewClient()
+		fedSyncer := federation.NewSyncer(db, fedClient, fedIdent, logger, time.Minute)
+		fedDiscovery := federation.NewDiscovery(fedClient, fedIdent,
+			fedCfg.DiscoveryURL, fedCfg.InstanceName, fedCfg.Port, logger)
+
+		go fedSyncer.Run()
+		go fedDiscovery.Run()
+
+		go func() {
+			logger.Info("federation listening", "addr", fedCfg.Port)
+			if err := http.ListenAndServe(fedCfg.Port, fedHandler.Routes()); err != nil {
+				logger.Error("federation server error", "error", err)
+			}
+		}()
+	}
 
 	handler := httpapi.NewServer(httpapi.ServerConfig{
 		DB:        db,

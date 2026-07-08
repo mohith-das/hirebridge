@@ -16,6 +16,15 @@ func CreateVirtualTables(db *sql.DB, embedDim int, logger *slog.Logger) error {
 		return fmt.Errorf("create snapshots_fts: %w", err)
 	}
 
+	_, err = db.Exec(`CREATE VIRTUAL TABLE IF NOT EXISTS fed_snapshots_fts USING fts5(
+		candidate_id UNINDEXED,
+		content,
+		tokenize='porter unicode61'
+	)`)
+	if err != nil {
+		logger.Warn("failed to create fed_snapshots_fts, federated search disabled", "error", err)
+	}
+
 	vecSQL := fmt.Sprintf(`CREATE VIRTUAL TABLE IF NOT EXISTS candidate_vec USING vec0(
 		candidate_id TEXT,
 		embedding float[%d]

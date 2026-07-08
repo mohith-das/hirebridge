@@ -51,6 +51,10 @@ func env(key, fallback string) string {
 	return fallback
 }
 
+func Env(key, fallback string) string {
+	return env(key, fallback)
+}
+
 func envInt(key string, fallback int) int {
 	if v := os.Getenv(key); v != "" {
 		if n, err := strconv.Atoi(v); err == nil {
@@ -58,6 +62,10 @@ func envInt(key string, fallback int) int {
 		}
 	}
 	return fallback
+}
+
+func EnvInt(key string, fallback int) int {
+	return envInt(key, fallback)
 }
 
 func envDuration(key string, fallback time.Duration) time.Duration {
