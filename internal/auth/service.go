@@ -182,7 +182,7 @@ func (s *Service) handlePollApproved(ds *repo.DeviceSession, codeHash string) (*
 
 	userID := consumed.UserID.String
 
-	_, _, err = repo.CreateAPIToken(s.DB, userID, nil, "device-flow", "all")
+	rawUserToken, _, err := repo.CreateAPIToken(s.DB, userID, nil, "device-flow", "all")
 	if err != nil {
 		return nil, fmt.Errorf("create user api token: %w", err)
 	}
@@ -200,13 +200,18 @@ func (s *Service) handlePollApproved(ds *repo.DeviceSession, codeHash string) (*
 		if err := repo.SetNodeUser(s.DB, consumed.NodeID.String, userID); err != nil {
 			return nil, fmt.Errorf("set node user: %w", err)
 		}
+		return &TokenPollResponse{
+			AccessToken: rawNodeToken,
+			NodeID:      consumed.NodeID.String,
+			TokenType:   "Bearer",
+			Scope:       "node:push",
+		}, nil
 	}
 
 	return &TokenPollResponse{
-		AccessToken: rawNodeToken,
-		NodeID:      consumed.NodeID.String,
+		AccessToken: rawUserToken,
 		TokenType:   "Bearer",
-		Scope:       "node:push",
+		Scope:       "all",
 	}, nil
 }
 
