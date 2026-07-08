@@ -2,14 +2,27 @@
 hirebridge
 *.exe
 *.dll
-*.so
 *.dylib
+
+# Extensions / external binaries
+*.so
+/ext/
+
+# Database files
+*.db
+*.db-shm
+*.db-wal
+data/
+
+# Secrets & environment
+.env
+
+# TLS / certs
+*.pem
+certs/
 
 # Test binary
 *.test
-
-# Data
-data/
 
 # IDE
 .idea/
@@ -20,4 +33,6 @@ data/
 # OS
 .DS_Store
 Thumbs.db
+
+# Logs
 *.log
