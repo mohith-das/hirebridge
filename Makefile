@@ -12,10 +12,10 @@ run: build
 dev:
 	HB_DB_PATH=data/hirebridge.db \
 	HB_LISTEN=:8080 \
-	go run -tags "$(BUILD_TAGS)" ./cmd/hirebridge
+	CGO_ENABLED=1 go run -tags "$(BUILD_TAGS)" ./cmd/hirebridge
 
 test:
-	go test -tags "$(BUILD_TAGS)" ./...
+	CGO_ENABLED=1 go test -tags "$(BUILD_TAGS)" ./...
 
 vet:
 	go vet -tags "$(BUILD_TAGS)" ./...

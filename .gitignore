@@ -21,7 +21,8 @@ data/
 *.pem
 certs/
 
-# Test binary
+# Test data
+testdata/
 *.test
 
 # IDE

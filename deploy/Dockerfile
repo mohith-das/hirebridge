@@ -1,9 +1,7 @@
 # syntax=docker/dockerfile:1
 
 # ---- builder ----
-FROM golang:1.23-alpine AS builder
-
-RUN apk add --no-cache gcc musl-dev
+FROM golang:1.23 AS builder
 
 WORKDIR /src
 COPY go.mod go.sum ./
@@ -20,7 +18,7 @@ RUN wget -qO- https://github.com/asg017/sqlite-vec/releases/download/v0.1.9/sqli
   | tar xz -C /out
 
 # ---- runtime ----
-FROM gcr.io/distroless/static-debian12
+FROM gcr.io/distroless/base-debian12
 
 COPY --from=builder /out/hirebridge /app/hirebridge
 COPY --from=vec0 /out/vec0.so /app/ext/vec0.so

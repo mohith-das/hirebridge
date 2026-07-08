@@ -79,10 +79,22 @@ func main() {
 	defer cancel()
 
 	if cfg.TLSDomain != "" {
+		if err := os.MkdirAll("certs", 0700); err != nil {
+			logger.Error("failed to create certs directory", "error", err)
+			os.Exit(1)
+		}
+
 		certManager := &autocert.Manager{
 			Cache:      autocert.DirCache("certs"),
 			Prompt:     autocert.AcceptTOS,
 			HostPolicy: autocert.HostWhitelist(cfg.TLSDomain),
+		}
+
+		httpSrv := &http.Server{
+			Addr:         ":80",
+			Handler:      certManager.HTTPHandler(nil),
+			ReadTimeout:  10 * time.Second,
+			WriteTimeout: 10 * time.Second,
 		}
 
 		tlsSrv := &http.Server{
@@ -95,14 +107,14 @@ func main() {
 		}
 
 		go func() {
-			logger.Info("listening (http)", "addr", ":80")
-			if err := http.ListenAndServe(":80", certManager.HTTPHandler(nil)); err != nil {
+			logger.Info("listening (http)", "addr", httpSrv.Addr)
+			if err := httpSrv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 				logger.Error("http server error", "error", err)
 			}
 		}()
 
 		go func() {
-			logger.Info("listening (https)", "addr", ":443", "domain", cfg.TLSDomain)
+			logger.Info("listening (https)", "addr", tlsSrv.Addr, "domain", cfg.TLSDomain)
 			if err := tlsSrv.ListenAndServeTLS("", ""); err != nil && err != http.ErrServerClosed {
 				logger.Error("https server error", "error", err)
 				os.Exit(1)
@@ -115,8 +127,11 @@ func main() {
 		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer shutdownCancel()
 
+		if err := httpSrv.Shutdown(shutdownCtx); err != nil {
+			logger.Error("http server shutdown failed", "error", err)
+		}
 		if err := tlsSrv.Shutdown(shutdownCtx); err != nil {
-			logger.Error("graceful shutdown failed", "error", err)
+			logger.Error("https server shutdown failed", "error", err)
 		}
 	} else {
 		srv := &http.Server{

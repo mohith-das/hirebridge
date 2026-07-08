@@ -201,7 +201,10 @@
             "description": "Link sent (or would be sent in dev/noop mode)",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/SnapshotResponse" }
+                "schema": {
+                  "type": "object",
+                  "properties": { "ok": { "type": "string", "example": "check your email" } }
+                }
               }
             }
           },
@@ -450,36 +453,6 @@
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/OAuthMetadata" }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/.well-known/oauth-authorization-server": {
-      "get": {
-        "tags": ["Discovery"],
-        "summary": "OAuth 2.1 authorization server metadata",
-        "description": "HireBridge acts as both the resource server and the authorization server.",
-        "operationId": "oauthAuthServer",
-        "security": [],
-        "responses": {
-          "200": {
-            "description": "Authorization server metadata",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "issuer": { "type": "string", "format": "uri" },
-                    "device_authorization_endpoint": { "type": "string", "format": "uri" },
-                    "token_endpoint": { "type": "string", "format": "uri" },
-                    "grant_types_supported": {
-                      "type": "array",
-                      "items": { "type": "string" }
-                    }
-                  }
-                }
               }
             }
           }
