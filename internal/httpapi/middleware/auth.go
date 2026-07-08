@@ -3,6 +3,7 @@ package middleware
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -16,6 +17,7 @@ const (
 	UserIDKey      contextKey = "user_id"
 	NodeIDKey      contextKey = "node_id"
 	BearerTokenKey contextKey = "bearer"
+	ScopeKey       contextKey = "scope"
 )
 
 func UserIDFromContext(ctx context.Context) string {
@@ -28,12 +30,25 @@ func NodeIDFromContext(ctx context.Context) string {
 	return v
 }
 
-func Auth(db *sql.DB, logger *slog.Logger) func(http.Handler) http.Handler {
+func ScopeFromContext(ctx context.Context) string {
+	v, _ := ctx.Value(ScopeKey).(string)
+	return v
+}
+
+func writeUnauthorized(w http.ResponseWriter, baseURL string) {
+	w.Header().Set("WWW-Authenticate",
+		fmt.Sprintf(`Bearer resource_metadata="%s/.well-known/oauth-protected-resource"`, baseURL))
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusUnauthorized)
+	w.Write([]byte(`{"error":"missing_token"}`))
+}
+
+func Auth(db *sql.DB, logger *slog.Logger, baseURL string) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			token := extractBearer(r)
 			if token == "" {
-				http.Error(w, `{"error":"missing_token"}`, http.StatusUnauthorized)
+				writeUnauthorized(w, baseURL)
 				return
 			}
 
@@ -44,7 +59,7 @@ func Auth(db *sql.DB, logger *slog.Logger) func(http.Handler) http.Handler {
 				return
 			}
 			if at == nil {
-				http.Error(w, `{"error":"invalid_token"}`, http.StatusUnauthorized)
+				writeUnauthorized(w, baseURL)
 				return
 			}
 
@@ -53,6 +68,9 @@ func Auth(db *sql.DB, logger *slog.Logger) func(http.Handler) http.Handler {
 			ctx := context.WithValue(r.Context(), UserIDKey, at.UserID)
 			if at.NodeID.Valid {
 				ctx = context.WithValue(ctx, NodeIDKey, at.NodeID.String)
+			}
+			if at.Scope.Valid {
+				ctx = context.WithValue(ctx, ScopeKey, at.Scope.String)
 			}
 			ctx = context.WithValue(ctx, BearerTokenKey, token)
 			next.ServeHTTP(w, r.WithContext(ctx))
@@ -81,8 +99,26 @@ func OptionalAuth(db *sql.DB, logger *slog.Logger) func(http.Handler) http.Handl
 			if at.NodeID.Valid {
 				ctx = context.WithValue(ctx, NodeIDKey, at.NodeID.String)
 			}
+			if at.Scope.Valid {
+				ctx = context.WithValue(ctx, ScopeKey, at.Scope.String)
+			}
 			ctx = context.WithValue(ctx, BearerTokenKey, token)
 			next.ServeHTTP(w, r.WithContext(ctx))
+		})
+	}
+}
+
+func RequireScope(required string) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			scope := ScopeFromContext(r.Context())
+			if scope != "all" && scope != required {
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusForbidden)
+				w.Write([]byte(`{"error":"insufficient_scope"}`))
+				return
+			}
+			next.ServeHTTP(w, r)
 		})
 	}
 }

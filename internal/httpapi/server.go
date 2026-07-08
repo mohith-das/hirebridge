@@ -84,7 +84,7 @@ func (s *Server) build() http.Handler {
 	authMw := middleware.OptionalAuth(s.cfg.DB, s.cfg.Logger)
 	r.With(authMw).Post("/device/approve", authH.ApproveDevice)
 
-	strictAuth := middleware.Auth(s.cfg.DB, s.cfg.Logger)
+	strictAuth := middleware.Auth(s.cfg.DB, s.cfg.Logger, s.cfg.BaseURL)
 	r.With(strictAuth).Post("/ingest/snapshot", ingestH.Snapshot)
 
 	r.Get("/", webH.Landing)
@@ -94,17 +94,18 @@ func (s *Server) build() http.Handler {
 	r.With(dashAuth).Get("/dashboard/talent", webH.TalentDashboard)
 	r.With(dashAuth).Get("/dashboard/recruiter", webH.RecruiterDashboard)
 
-	nodeAuth := middleware.Auth(s.cfg.DB, s.cfg.Logger)
+	nodeAuth := middleware.Auth(s.cfg.DB, s.cfg.Logger, s.cfg.BaseURL)
 	r.With(nodeAuth).Post("/api/nodes/{nodeID}/revoke", webH.RevokeNode)
 
 	mcpSrv := mcp.NewMCPServer(s.cfg.SearchSvc, s.cfg.DB, s.cfg.BaseURL)
 
 	r.Get("/.well-known/oauth-protected-resource", mcpSrv.ServeHTTP)
 
-	mcpMw := middleware.Auth(s.cfg.DB, s.cfg.Logger)
-	r.With(mcpMw).Get("/mcp", mcpSrv.ServeHTTP)
-	r.With(mcpMw).Post("/mcp", mcpSrv.ServeHTTP)
-	r.With(mcpMw).Delete("/mcp", mcpSrv.ServeHTTP)
+	mcpMw := middleware.Auth(s.cfg.DB, s.cfg.Logger, s.cfg.BaseURL)
+	mcpScope := middleware.RequireScope("talent:search")
+	r.With(mcpMw, mcpScope).Get("/mcp", mcpSrv.ServeHTTP)
+	r.With(mcpMw, mcpScope).Post("/mcp", mcpSrv.ServeHTTP)
+	r.With(mcpMw, mcpScope).Delete("/mcp", mcpSrv.ServeHTTP)
 
 	return r
 }
