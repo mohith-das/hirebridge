@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>HireBridge — Device Verification</title>
+<style>
+:root{font-family:system-ui,sans-serif;background:#111;color:#eee;line-height:1.5}
+body{max-width:480px;margin:4rem auto;padding:0 1rem}
+h1{font-size:1.5rem;border-bottom:2px solid #444;padding-bottom:.5rem}
+p{margin:1rem 0}
+code{background:#222;padding:.15em .4em;border-radius:4px;font-size:1.2rem;letter-spacing:.15em}
+input,button{box-sizing:border-box;width:100%;padding:.75rem;margin:.5rem 0;border:1px solid #444;background:#222;color:#eee;font-size:1rem}
+button{background:#eee;color:#111;cursor:pointer;font-weight:600}
+button:hover{background:#fff}
+.success{color:#0f0}
+.error{color:#f44}
+</style>
+</head>
+<body>
+<h1>HireBridge</h1>
+{{if .Approved}}
+<p class="success"><strong>Device approved.</strong> Return to your CLI — it will receive the token shortly.</p>
+{{else if .Error}}
+<p class="error">{{.Error}}</p>
+{{else if .UserCode}}
+<p>Enter the code shown in your terminal:</p>
+<p><code>{{.UserCode}}</code></p>
+{{if .LoggedIn}}
+<form method="post" action="/device/approve">
+<input type="hidden" name="uc" value="{{.UserCode}}">
+<button type="submit">Approve this device</button>
+</form>
+{{else}}
+<form method="post" action="/auth/request">
+<input type="hidden" name="uc" value="{{.UserCode}}">
+<input type="email" name="email" placeholder="you@example.com" required autofocus>
+<button type="submit">Send Magic Link</button>
+</form>
+{{end}}
+{{else}}
+<p>Enter the verification code from your CLI:</p>
+<form method="get" action="/device">
+<input type="text" name="uc" placeholder="XXXX-XXXX" required autofocus pattern="[A-Z0-9]{4}-[A-Z0-9]{4}">
+<button type="submit">Verify</button>
+</form>
+{{end}}
+</body>
+</html>

@@ -1,0 +1,43 @@
+name: hirebridge
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.23"
+
+      - run: go mod download
+
+      - name: Vet
+        run: go vet -tags "sqlite_fts5 sqlite_load_extension" ./...
+
+      - name: Test
+        run: go test -tags "sqlite_fts5 sqlite_load_extension" -race ./...
+
+      - name: Build
+        run: |
+          CGO_ENABLED=1 go build \
+            -tags "sqlite_fts5 sqlite_load_extension" \
+            -ldflags="-s -w" \
+            -o hirebridge \
+            ./cmd/hirebridge
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: hirebridge-linux-amd64
+          path: hirebridge
+
+      - name: Check binary size
+        run: |
+          SIZE=$(stat -c%s hirebridge)
+          echo "Binary size: $SIZE bytes ($(echo "scale=1; $SIZE/1048576" | bc) MB)"

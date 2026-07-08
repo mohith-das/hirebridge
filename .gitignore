@@ -1,0 +1,23 @@
+# Binaries
+hirebridge
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Test binary
+*.test
+
+# Data
+data/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+*.log

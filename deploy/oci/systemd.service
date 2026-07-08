@@ -1,0 +1,34 @@
+[Unit]
+Description=HireBridge — Decentralized AI Talent Bridge
+After=network.target
+
+[Service]
+Type=simple
+User=hirebridge
+Group=hirebridge
+WorkingDirectory=/opt/hirebridge
+
+Environment="HB_LISTEN=:8080"
+Environment="HB_DB_PATH=/opt/hirebridge/data/hirebridge.db"
+Environment="HB_VEC0_PATH=/app/ext/vec0.so"
+Environment="HB_EMBED_DIM=384"
+Environment="HB_TLS_DOMAIN=hirebridge.example.com"
+Environment="HB_BASE_URL=https://hirebridge.example.com"
+
+ExecStart=/opt/hirebridge/hirebridge
+ExecReload=/bin/kill -HUP $MAINPID
+
+Restart=always
+RestartSec=5
+
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/opt/hirebridge/data
+ReadOnlyPaths=/opt/hirebridge/hirebridge
+
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,18 @@
+/* brutalist.css — hirebridge */
+:root{font-family:system-ui,ui-sans-serif,monospace;background:#111;color:#eee;line-height:1.5}
+a{color:#0cf}
+body{max-width:640px;margin:2rem auto;padding:0 1rem}
+h1,h2{border-bottom:2px solid #444;padding-bottom:.25rem}
+code{background:#222;padding:.1em .3em;border-radius:3px}
+pre{background:#222;padding:1rem;overflow-x:auto}
+table{width:100%;border-collapse:collapse;margin:1rem 0}
+td,th{border:1px solid #444;padding:.5rem;text-align:left}
+th{background:#222}
+input,button{padding:.6rem .8rem;border:1px solid #444;background:#222;color:#eee;font-size:1rem}
+button{background:#eee;color:#111;cursor:pointer;font-weight:600}
+button:hover{background:#fff}
+button.danger{background:#611;color:#faa;border-color:#a44}
+button.danger:hover{background:#a11;color:#fff}
+.success{color:#0f0}
+.warn{color:#fa0}
+.error{color:#f44}

@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>HireBridge — Recruiter Dashboard</title>
+<link rel="stylesheet" href="/static/brutalist.css">
+</head>
+<body>
+<h1>Recruiter Dashboard</h1>
+
+<h2>MCP API Key</h2>
+<p>Paste this into Claude Desktop to connect your HireBridge MCP server.</p>
+<pre id="mcp-key" style="cursor:pointer;user-select:all">{{if .APIKey}}{{.APIKey}}{{else}}No API key generated yet. Log in via magic link first.{{end}}</pre>
+<button onclick="navigator.clipboard.writeText(document.getElementById('mcp-key').innerText.replace(/\\n/g,''))">Copy</button>
+
+<h2>MCP Endpoint</h2>
+<pre>{{.BaseURL}}/mcp</pre>
+
+<h2>Searchable Talent</h2>
+<p><strong>{{.TalentCount}}</strong> candidates indexed across <strong>{{.NodeCount}}</strong> active nodes.</p>
+
+{{if .RecentActivity}}
+<h2>Recent Activity</h2>
+<table>
+<tr><th>Action</th><th>Time</th></tr>
+{{range .RecentActivity}}
+<tr><td>{{.Action}}</td><td>{{.Time}}</td></tr>
+{{end}}
+</table>
+{{end}}
+
+<p style="margin-top:2rem">
+<a href="/dashboard/talent">Talent Dashboard</a>
+&middot;
+<form method="post" action="/auth/logout" style="display:inline">
+<button type="submit" style="background:none;border:none;color:#0cf;cursor:pointer;font-size:inherit;padding:0">Log Out</button>
+</form>
+</p>
+</body>
+</html>

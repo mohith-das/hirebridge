@@ -1,0 +1,8 @@
+DROP TABLE IF EXISTS audit_log;
+DROP TABLE IF EXISTS introduction_requests;
+DROP TABLE IF EXISTS device_sessions;
+DROP TABLE IF EXISTS api_tokens;
+DROP TABLE IF EXISTS magic_tokens;
+DROP TABLE IF EXISTS snapshots;
+DROP TABLE IF EXISTS nodes;
+DROP TABLE IF EXISTS users;
