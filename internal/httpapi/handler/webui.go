@@ -145,7 +145,9 @@ func (h *WebUIHandler) GenerateAPIKey(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	repo.InsertAuditLog(h.DB, userID, "apikey_generated", "mcp-api")
+	if err := repo.InsertAuditLog(h.DB, userID, "apikey_generated", "mcp-api"); err != nil {
+		h.Logger.Warn("audit write failed", "error", err)
+	}
 
 	var candidateCount int
 	h.DB.QueryRow(`SELECT count(*) FROM snapshots`).Scan(&candidateCount)
