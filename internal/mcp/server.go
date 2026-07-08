@@ -9,7 +9,9 @@ import (
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 
+	"hirebridge/internal/httpapi/middleware"
 	"hirebridge/internal/service"
+	"hirebridge/internal/store/repo"
 )
 
 type MCPServer struct {
@@ -121,13 +123,26 @@ func (s *MCPServer) handleRequestIntroduction(ctx context.Context, req mcp.CallT
 	candidateID, _ := req.RequireString("candidate_id")
 	recruiterIdentity, _ := req.RequireString("recruiter_identity")
 
+	recruiterUserID := middleware.UserIDFromContext(ctx)
+
+	snap, _ := repo.GetSnapshotByCandidate(s.DB, candidateID)
+	var nodeID string
+	if snap != nil {
+		nodeID = snap.NodeID
+	}
+
+	requestID := repo.NewID()
+	if err := repo.InsertIntroductionRequest(s.DB, requestID, candidateID, recruiterUserID, nodeID); err != nil {
+		s.SearchSvc.Logger.Warn("failed to persist intro request", "error", err)
+	}
+
 	result := map[string]any{
-		"request_id":          fmt.Sprintf("req_%x", candidateID),
+		"request_id":          requestID,
 		"status":              "queued",
 		"candidate_id":        candidateID,
 		"recruiter_identity":  recruiterIdentity,
+		"node_id":             nodeID,
 		"delivered":           false,
-		"note":                "introduction request recorded; outbound notification pending",
 	}
 
 	jsonBytes, _ := json.Marshal(result)
