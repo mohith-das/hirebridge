@@ -152,7 +152,7 @@ func (h *WebUIHandler) RevokeNode(w http.ResponseWriter, r *http.Request) {
 	}
 
 	n, err := repo.NodeByID(h.DB, nodeID)
-	if err != nil || n == nil || n.UserID != userID {
+	if err != nil || n == nil || !n.UserID.Valid || n.UserID.String != userID {
 		http.Error(w, "not found", http.StatusNotFound)
 		return
 	}

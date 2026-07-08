@@ -23,7 +23,7 @@ func SetNodeUser(db *sql.DB, nodeID, userID string) error {
 
 type Node struct {
 	ID                string
-	UserID            string
+	UserID            sql.NullString
 	NodeType          string
 	EndpointURL       string
 	LastPingTimestamp sql.NullInt64
