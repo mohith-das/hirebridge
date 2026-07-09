@@ -20,13 +20,19 @@ import (
 )
 
 type ServerConfig struct {
-	DB         *sql.DB
-	Logger     *slog.Logger
-	AuthSvc    *auth.Service
-	IngestSvc  *service.IngestService
-	SearchSvc  *service.SearchService
-	BaseURL    string
-	StaleAge   time.Duration
+	DB            *sql.DB
+	Logger        *slog.Logger
+	AuthSvc       *auth.Service
+	IngestSvc     *service.IngestService
+	SearchSvc     *service.SearchService
+	BaseURL       string
+	StaleAge      time.Duration
+	MCPEndpoint   string
+	AdminEmail    string
+	MagicTTL      time.Duration
+	AdminSessions *middleware.AdminSessions
+	AdminPending  *middleware.AdminPendingLinks
+	SendMagicLink func(email, link string) error
 }
 
 func NewServer(cfg ServerConfig) http.Handler {
@@ -64,6 +70,17 @@ func (s *Server) build() http.Handler {
 		StaleAge: s.cfg.StaleAge,
 	}
 
+	adminH := &handler.AdminHandler{
+		DB:         s.cfg.DB,
+		Logger:     s.cfg.Logger,
+		Sessions:   s.cfg.AdminSessions,
+		Pending:    s.cfg.AdminPending,
+		AdminEmail: s.cfg.AdminEmail,
+		LinkTTL:    s.cfg.MagicTTL,
+		SendLink:   s.cfg.SendMagicLink,
+		Limiter:    limiter,
+	}
+
 	r.Get("/healthz", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
@@ -82,7 +99,8 @@ func (s *Server) build() http.Handler {
 	r.Get("/device", authH.DevicePage)
 
 	authMw := middleware.OptionalAuth(s.cfg.DB, s.cfg.Logger)
-	r.With(authMw).Post("/device/approve", authH.ApproveDevice)
+	csrfMw := middleware.RequireSameOrigin(s.cfg.BaseURL)
+	r.With(authMw, csrfMw).Post("/device/approve", authH.ApproveDevice)
 
 	strictAuth := middleware.Auth(s.cfg.DB, s.cfg.Logger, s.cfg.BaseURL)
 	r.With(strictAuth).Post("/ingest/snapshot", ingestH.Snapshot)
@@ -98,23 +116,38 @@ func (s *Server) build() http.Handler {
 	})
 
 	dashAuth := middleware.OptionalAuth(s.cfg.DB, s.cfg.Logger)
+	dashCSRF := middleware.RequireSameOrigin(s.cfg.BaseURL)
 	r.With(dashAuth).Get("/dashboard", webH.DashboardRedirect)
 	r.With(dashAuth).Get("/dashboard/talent", webH.TalentDashboard)
 	r.With(dashAuth).Get("/dashboard/recruiter", webH.RecruiterDashboard)
-	r.With(dashAuth).Post("/dashboard/recruiter/apikey", webH.GenerateAPIKey)
+	r.With(dashAuth, dashCSRF).Post("/dashboard/recruiter/apikey", webH.GenerateAPIKey)
 
-	nodeAuth := middleware.Auth(s.cfg.DB, s.cfg.Logger, s.cfg.BaseURL)
-	r.With(nodeAuth).Post("/api/nodes/{nodeID}/revoke", webH.RevokeNode)
+	r.With(authMw, csrfMw).Post("/api/nodes/{nodeID}/revoke", webH.RevokeNode)
 
-	mcpSrv := mcp.NewMCPServer(s.cfg.SearchSvc, s.cfg.DB, s.cfg.BaseURL)
+	if adminH.Enabled() {
+		adminMw := middleware.RequireAdmin(s.cfg.AdminSessions, true)
+		// Login and callback are exempt from RequireAdmin: /admin/login
+		// is the entrance, and /admin/callback authenticates via a
+		// single-use token in the query string.
+		r.Get("/admin/login", adminH.LoginForm)
+		r.With(csrfMw).Post("/admin/login", adminH.LoginSubmit)
+		r.Get("/admin/callback", adminH.Callback)
+		r.With(csrfMw, adminMw).Post("/admin/logout", adminH.Logout)
+		r.With(adminMw).Get("/admin", adminH.Panel)
+		r.With(csrfMw, adminMw).Post("/admin/peers/{id}/approve", adminH.ApprovePeer)
+		r.With(csrfMw, adminMw).Post("/admin/peers/{id}/revoke", adminH.RevokePeer)
+	}
+
+	mcpSrv := mcp.NewMCPServer(s.cfg.SearchSvc, s.cfg.DB, s.cfg.BaseURL, s.cfg.MCPEndpoint)
 
 	r.Get("/.well-known/oauth-protected-resource", mcpSrv.ServeHTTP)
 
 	mcpMw := middleware.Auth(s.cfg.DB, s.cfg.Logger, s.cfg.BaseURL)
 	mcpScope := middleware.RequireScope("talent:search")
-	r.With(mcpMw, mcpScope).Get("/mcp", mcpSrv.ServeHTTP)
-	r.With(mcpMw, mcpScope).Post("/mcp", mcpSrv.ServeHTTP)
-	r.With(mcpMw, mcpScope).Delete("/mcp", mcpSrv.ServeHTTP)
+	mcpPath := s.cfg.MCPEndpoint
+	r.With(mcpMw, mcpScope).Get(mcpPath, mcpSrv.ServeHTTP)
+	r.With(mcpMw, mcpScope).Post(mcpPath, mcpSrv.ServeHTTP)
+	r.With(mcpMw, mcpScope).Delete(mcpPath, mcpSrv.ServeHTTP)
 
 	return r
 }

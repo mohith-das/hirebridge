@@ -16,6 +16,7 @@ type Config struct {
 	SyncInterval  string
 	ExportFilter  string
 	ImportMaxPeer int
+	JoinSecret    string
 }
 
 func LoadConfig(cfg *config.Config) *Config {
@@ -29,5 +30,6 @@ func LoadConfig(cfg *config.Config) *Config {
 		SyncInterval: config.Env("HB_FEDERATION_SYNC_INTERVAL", "5m"),
 		ExportFilter: config.Env("HB_FEDERATION_EXPORT_FILTER", ""),
 		ImportMaxPeer: config.EnvInt("HB_FEDERATION_IMPORT_MAX", 10000),
+		JoinSecret:    config.Env("HB_FEDERATION_JOIN_SECRET", ""),
 	}
 }

@@ -24,6 +24,7 @@ type Config struct {
 	MagicTTL            time.Duration
 	NodeStaleAge        time.Duration
 	MCPEndpoint         string
+	AdminEmail          string
 }
 
 func Load() *Config {
@@ -45,6 +46,7 @@ func Load() *Config {
 		MagicTTL:            envDuration("HB_MAGIC_TTL", 15*time.Minute),
 		NodeStaleAge:        envDuration("HB_NODE_PING_STALE", 90*time.Second),
 		MCPEndpoint:         env("HB_MCP_ENDPOINT", "/mcp"),
+		AdminEmail:          env("HB_ADMIN_EMAIL", ""),
 	}
 }
 

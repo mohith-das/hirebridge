@@ -2,6 +2,7 @@ package service
 
 import (
 	"database/sql"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"log/slog"
@@ -64,7 +65,11 @@ func (s *IngestService) Process(nodeID string, input *SnapshotInput) error {
 
 	var sigBytes []byte
 	if input.Signature != "" {
-		sigBytes = []byte(input.Signature)
+		var err error
+		sigBytes, err = hex.DecodeString(input.Signature)
+		if err != nil {
+			return fmt.Errorf("decode signature: %w", err)
+		}
 	}
 
 	if err := repo.UpsertSnapshot(s.DB, repo.NewID(), nodeID, input.CandidateID, payloadJSON, sigBytes); err != nil {

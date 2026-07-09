@@ -1,5 +1,6 @@
 # Binaries
 /hirebridge
+/hirebridge-*
 *.exe
 *.dll
 *.dylib
@@ -37,3 +38,9 @@ Thumbs.db
 
 # Logs
 *.log
+
+# Audit / working documents — never tracked.
+AUDIT_PLAN.md
+AUDIT_PLAN-*.md
+session-*.md
+plan-ses_*.md

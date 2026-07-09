@@ -79,7 +79,7 @@ func TestGenerateAPIKey_CreatesToken(t *testing.T) {
 	}
 
 	var count int
-	db.QueryRow(`SELECT count(*) FROM api_tokens WHERE label='mcp-api' AND scope='all' AND user_id=?`,
+	db.QueryRow(`SELECT count(*) FROM api_tokens WHERE label='mcp-api' AND scope='talent:search' AND user_id=?`,
 		seedUserID).Scan(&count)
 	if count != 1 {
 		t.Fatalf("expected 1 mcp-api token, got %d", count)

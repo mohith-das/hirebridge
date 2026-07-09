@@ -13,8 +13,15 @@ services:
       - HB_VEC0_PATH=/app/ext/vec0.so
       - HB_EMBED_DIM=384
       - HB_RESEND_API_KEY=
+      - HB_ADMIN_EMAIL=${HIREBRIDGE_NODE_ADMIN_EMAIL}
     volumes:
       - hirebridge_data:/data
 
 volumes:
   hirebridge_data:
+
+# HIREBRIDGE_NODE_ADMIN_EMAIL: the operator's email address that may
+# authenticate to /admin via magic-link. Set this either in your shell
+# (`export HIREBRIDGE_NODE_ADMIN_EMAIL=ops@example.com` before running
+# `docker compose up`) or in a `.env` file alongside this compose file.
+# Leave it unset to disable /admin entirely (all /admin/* routes return 404).

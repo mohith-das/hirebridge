@@ -150,7 +150,7 @@ func (h *WebUIHandler) GenerateAPIKey(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	rawToken, _, err := repo.CreateAPIToken(h.DB, userID, nil, "mcp-api", "all")
+	rawToken, _, err := repo.CreateAPIToken(h.DB, userID, nil, "mcp-api", "talent:search")
 	if err != nil {
 		h.Logger.Error("api key generation failed", "error", err, "user_id", userID)
 		http.Error(w, "internal error", http.StatusInternalServerError)

@@ -46,7 +46,7 @@ func writeUnauthorized(w http.ResponseWriter, baseURL, code string) {
 func Auth(db *sql.DB, logger *slog.Logger, baseURL string) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			token := extractBearer(r)
+			token := extractBearerHeader(r)
 			if token == "" {
 				writeUnauthorized(w, baseURL, "missing_token")
 				return
@@ -140,4 +140,35 @@ func extractBearer(r *http.Request) string {
 		return ""
 	}
 	return strings.TrimPrefix(auth, "Bearer ")
+}
+
+func extractBearerHeader(r *http.Request) string {
+	auth := r.Header.Get("Authorization")
+	if !strings.HasPrefix(auth, "Bearer ") {
+		return ""
+	}
+	return strings.TrimPrefix(auth, "Bearer ")
+}
+
+func RequireSameOrigin(baseURL string) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.Method == http.MethodGet || r.Method == http.MethodHead || r.Method == http.MethodOptions {
+				next.ServeHTTP(w, r)
+				return
+			}
+			origin := r.Header.Get("Origin")
+			if origin == "" {
+				referer := r.Header.Get("Referer")
+				if referer == "" || !strings.HasPrefix(referer, baseURL) {
+					http.Error(w, `{"error":"csrf_validation_failed"}`, http.StatusForbidden)
+					return
+				}
+			} else if !strings.HasPrefix(origin, baseURL) {
+				http.Error(w, `{"error":"csrf_validation_failed"}`, http.StatusForbidden)
+				return
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
 }

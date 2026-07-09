@@ -1,7 +1,9 @@
 package handler
 
 import (
+	"crypto/ed25519"
 	"database/sql"
+	"encoding/hex"
 	"encoding/json"
 	"io"
 	"log/slog"
@@ -118,13 +120,24 @@ func (h *AuthHandler) InitDevice(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		NodeType    string `json:"node_type"`
 		EndpointURL string `json:"endpoint_url"`
+		PublicKey   string `json:"public_key"`
 	}
 	if r.Body != nil {
 		body, _ := io.ReadAll(io.LimitReader(r.Body, 4096))
 		json.Unmarshal(body, &req)
 	}
 
-	resp, err := h.Svc.InitiateDeviceFlow(req.NodeType, req.EndpointURL)
+	var pubKey []byte
+	if req.PublicKey != "" {
+		var err error
+		pubKey, err = hex.DecodeString(req.PublicKey)
+		if err != nil || len(pubKey) != ed25519.PublicKeySize {
+			http.Error(w, `{"error":"invalid_public_key"}`, http.StatusBadRequest)
+			return
+		}
+	}
+
+	resp, err := h.Svc.InitiateDeviceFlow(req.NodeType, req.EndpointURL, pubKey)
 	if err != nil {
 		h.Logger.ErrorContext(r.Context(), "device init failed", "error", err)
 		http.Error(w, `{"error":"internal"}`, http.StatusInternalServerError)

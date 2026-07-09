@@ -2,12 +2,16 @@ package federation
 
 import (
 	"bytes"
+	"crypto/subtle"
 	"database/sql"
+	"encoding/hex"
 	"encoding/json"
 	"io"
 	"log/slog"
 	"net/http"
 	"time"
+
+	"hirebridge/internal/store/repo"
 )
 
 type Handler struct {
@@ -49,6 +53,22 @@ func (h *Handler) fedAuth(next http.Handler) http.Handler {
 			http.Error(w, `{"error":"invalid federation signature"}`, http.StatusUnauthorized)
 			return
 		}
+
+		// Bootstrap endpoints (register/handshake) don't require an active
+		// peer record yet — that's what they exist to create. All other
+		// endpoints (and /fed/health) still gate on active peer lookup.
+		if r.URL.Path != "/fed/health" && r.URL.Path != "/fed/register" && r.URL.Path != "/fed/handshake" {
+			var isActive bool
+			err := h.DB.QueryRow(
+				`SELECT is_active FROM federated_instances WHERE instance_key = ? AND revoked_at IS NULL`,
+				pubKey,
+			).Scan(&isActive)
+			if err != nil || !isActive {
+				http.Error(w, `{"error":"unknown or inactive peer"}`, http.StatusUnauthorized)
+				return
+			}
+		}
+
 		next.ServeHTTP(w, r)
 	})
 }
@@ -65,17 +85,42 @@ func (h *Handler) handshake(w http.ResponseWriter, r *http.Request) {
 	}
 	now := time.Now().Unix()
 	instanceID := "fed_" + req.Name
+
+	var existingIsActive bool
+	err := h.DB.QueryRow(`SELECT is_active FROM federated_instances WHERE id = ?`, instanceID).Scan(&existingIsActive)
+	if err == nil && existingIsActive {
+		http.Error(w, `{"error":"peer already registered and active"}`, http.StatusConflict)
+		return
+	}
+
+	trusted := joinSecretMatches(r, h.Config.JoinSecret)
 	h.DB.Exec(
 		`INSERT OR REPLACE INTO federated_instances (id, name, endpoint_url, public_key, instance_key, is_active, last_seen_at, created_at)
-		 VALUES (?, ?, ?, ?, ?, 1, ?, ?)`,
-		instanceID, req.Name, req.EndpointURL, req.PublicKey, req.PublicKey, now, now,
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+		instanceID, req.Name, req.EndpointURL, req.PublicKey, req.PublicKey, trusted, now, now,
 	)
+	status := "pending_approval"
+	if trusted {
+		status = "active"
+	}
 	writeJSON(w, map[string]any{
 		"accepted":    true,
 		"instance_id": instanceID,
 		"public_key":  h.Identity.PublicKey,
 		"version":     "1.0.0",
+		"status":      status,
 	})
+}
+
+func joinSecretMatches(r *http.Request, configured string) bool {
+	if configured == "" {
+		return false
+	}
+	got := r.Header.Get("X-Fed-Join-Secret")
+	if got == "" {
+		return false
+	}
+	return subtle.ConstantTimeCompare([]byte(got), []byte(configured)) == 1
 }
 
 func (h *Handler) health(w http.ResponseWriter, r *http.Request) {
@@ -113,6 +158,7 @@ func (h *Handler) snapshots(w http.ResponseWriter, r *http.Request) {
 		results = append(results, map[string]any{
 			"candidate_id": cid, "payload_json": payload,
 			"node_id": nodeID, "ingested_at": ingested,
+			"signature": hex.EncodeToString(sig),
 		})
 	}
 	writeJSON(w, results)
@@ -153,9 +199,14 @@ func (h *Handler) search(w http.ResponseWriter, r *http.Request) {
 	if req.Limit <= 0 {
 		req.Limit = 20
 	}
+	sanitized := repo.SanitizeFTS5Query(req.Query)
+	if sanitized == "" {
+		writeJSON(w, []map[string]string{})
+		return
+	}
 	rows, err := h.DB.Query(
 		`SELECT candidate_id FROM snapshots_fts WHERE snapshots_fts MATCH ? LIMIT ?`,
-		req.Query, req.Limit,
+		sanitized, req.Limit,
 	)
 	if err != nil {
 		h.Logger.Warn("fed search failed", "error", err)
@@ -183,13 +234,27 @@ func (h *Handler) register(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, `{"error":"invalid_request"}`, http.StatusBadRequest)
 		return
 	}
+	instanceID := "fed_" + req.Name
+
+	var existingIsActive bool
+	err := h.DB.QueryRow(`SELECT is_active FROM federated_instances WHERE id = ?`, instanceID).Scan(&existingIsActive)
+	if err == nil && existingIsActive {
+		http.Error(w, `{"error":"peer already registered and active"}`, http.StatusConflict)
+		return
+	}
+
 	now := time.Now().Unix()
+	trusted := joinSecretMatches(r, h.Config.JoinSecret)
 	h.DB.Exec(
 		`INSERT OR REPLACE INTO federated_instances (id, name, endpoint_url, public_key, instance_key, is_active, last_seen_at, created_at)
-		 VALUES (?, ?, ?, ?, ?, 1, ?, ?)`,
-		"fed_"+req.Name, req.Name, req.EndpointURL, req.PublicKey, req.PublicKey, now, now,
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+		instanceID, req.Name, req.EndpointURL, req.PublicKey, req.PublicKey, trusted, now, now,
 	)
-	writeJSON(w, map[string]string{"status": "registered"})
+	state := "pending_approval"
+	if trusted {
+		state = "active"
+	}
+	writeJSON(w, map[string]string{"status": "registered", "state": state})
 }
 
 func (h *Handler) peers(w http.ResponseWriter, r *http.Request) {

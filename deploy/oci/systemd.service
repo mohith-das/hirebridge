@@ -8,12 +8,20 @@ User=hirebridge
 Group=hirebridge
 WorkingDirectory=/opt/hirebridge
 
+# Hardcoded defaults — overridden by EnvironmentFile below whenever the
+# deploy workflow has written a fresh /opt/hirebridge/.env.
 Environment="HB_LISTEN=:8080"
 Environment="HB_DB_PATH=/opt/hirebridge/data/hirebridge.db"
 Environment="HB_VEC0_PATH=/app/ext/vec0.so"
 Environment="HB_EMBED_DIM=384"
 Environment="HB_TLS_DOMAIN=hirebridge.example.com"
 Environment="HB_BASE_URL=https://hirebridge.example.com"
+
+# Loads the full operational config (SMTP, federation, admin, etc.) written
+# by .github/workflows/deploy.yml. The leading '-' means "don't fail if
+# this file is briefly missing on first boot before the workflow's first
+# run" — the hardcoded Environment= lines above act as fallback defaults.
+EnvironmentFile=-/opt/hirebridge/.env
 
 ExecStart=/opt/hirebridge/hirebridge
 ExecReload=/bin/kill -HUP $MAINPID

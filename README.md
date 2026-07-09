@@ -66,6 +66,12 @@ HireBridge is designed to run on **the smallest possible machine**—1 vCPU, 1 G
 
 **Data minimization.** HireBridge caches only what edge nodes explicitly push. It does not crawl, scrape, or aggregate from external sources. Nodes can revoke access at any time, removing their data from the index.
 
+**Federation peer approval.** When federation is enabled, every peer must be trusted before it can read snapshots or push intros. The trust bootstrap is one of two paths:
+1. **Shared join secret (low-touch):** the operator sets `HB_FEDERATION_JOIN_SECRET` to a high-entropy value known to the operator and the peer. The peer sends it as `X-Fed-Join-Secret` on the `register` or `handshake` request, and the row lands as `is_active=1` immediately. The constant-time comparison prevents remote timing leaks. With the secret unset, no fast path exists and every registration is `pending`.
+2. **Admin panel (manual):** the operator seeds a single `HB_ADMIN_EMAIL` and authenticates to `/admin` via magic link (request a sign-in link → click it → session cookie for ~2 h). The admin identity is provisioned at deploy time only — it is **not** a row in the `users` table and cannot be created or authenticated via the normal magic-link or device flows. The link tokens live in process memory under a `sync.Mutex` (decoupled from the `magic_tokens` DB table used by regular users), expire in `HB_MAGIC_TTL` (default 15m, shared with the user-flow knob), and are single-use. The login response is uniform so it doesn't leak whether the submitted email matched. Sessions are stored in process memory under a separate `sync.Mutex`, scoped to the `/admin/` cookie path, and expire after ~2 hours. If `HB_ADMIN_EMAIL` is unset (or whitespace), every `/admin/*` route returns 404.
+
+In short: **trust is established by an out-of-band artifact (the join secret) or by an out-of-band human (the admin panel), never by the request itself.**
+
 ---
 
 ## Getting Started
@@ -100,6 +106,12 @@ HB_VEC0_PATH=/app/ext/vec0.so   # optional; skip to run without semantic search
 HB_EMBED_DIM=384
 HB_RESEND_API_KEY=re_...        # or configure SMTP
 HB_TLS_DOMAIN=                   # set for production autocert TLS
+
+# Federation (default: disabled)
+# HB_FEDERATION_ENABLED=true
+# HB_FEDERATION_PORT=:8400
+# HB_FEDERATION_JOIN_SECRET=...   # high-entropy shared secret; empty disables the fast path
+# HB_ADMIN_EMAIL=...              # single admin address; unset = admin routes 404
 ```
 
 ### Docker

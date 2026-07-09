@@ -1,6 +1,35 @@
 package repo
 
-import "database/sql"
+import (
+	"database/sql"
+	"regexp"
+	"strings"
+)
+
+var ftsNonWord = regexp.MustCompile(`[^\p{L}\p{N}_]+`)
+
+func SanitizeFTS5Query(raw string) string {
+	terms := strings.Fields(raw)
+	if len(terms) == 0 {
+		return ""
+	}
+	cleaned := make([]string, 0, len(terms))
+	for _, t := range terms {
+		stripped := strings.Trim(ftsNonWord.ReplaceAllString(t, ""), `"*^():`)
+		if strings.EqualFold(stripped, "AND") || strings.EqualFold(stripped, "OR") ||
+			strings.EqualFold(stripped, "NOT") || strings.EqualFold(stripped, "NEAR") {
+			continue
+		}
+		if stripped == "" {
+			continue
+		}
+		cleaned = append(cleaned, `"`+stripped+`"`)
+	}
+	if len(cleaned) == 0 {
+		return ""
+	}
+	return strings.Join(cleaned, " ")
+}
 
 type SearchHit struct {
 	CandidateID string
@@ -9,13 +38,17 @@ type SearchHit struct {
 }
 
 func FTS5Search(db *sql.DB, query string, limit int) ([]SearchHit, error) {
+	sanitized := SanitizeFTS5Query(query)
+	if sanitized == "" {
+		return nil, nil
+	}
 	rows, err := db.Query(
 		`SELECT candidate_id, bm25(snapshots_fts, 0) AS rank
 		 FROM snapshots_fts WHERE snapshots_fts MATCH ?
-		 ORDER BY rank LIMIT ?`, query, limit,
+		 ORDER BY rank LIMIT ?`, sanitized, limit,
 	)
 	if err != nil {
-		return nil, err
+		return nil, nil
 	}
 	defer rows.Close()
 

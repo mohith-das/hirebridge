@@ -2,6 +2,7 @@ package service
 
 import (
 	"database/sql"
+	"encoding/hex"
 	"log/slog"
 	"sort"
 
@@ -167,8 +168,8 @@ func (s *SearchService) GetTalentProfile(candidateID string) (*TalentProfile, er
 		NodeID:      snap.NodeID,
 		EndpointURL: snap.EndpointURL,
 		Payload:     snap.PayloadJSON,
-		Signature:   string(snap.Signature),
-		PublicKey:   string(snap.PublicKey),
+		Signature:   hex.EncodeToString(snap.Signature),
+		PublicKey:   hex.EncodeToString(snap.PublicKey),
 		IngestedAt:  snap.IngestedAt,
 	}, nil
 }

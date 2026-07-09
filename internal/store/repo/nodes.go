@@ -61,7 +61,39 @@ func NodesByUser(db *sql.DB, userID string) ([]Node, error) {
 
 func RevokeNode(db *sql.DB, nodeID string) error {
 	now := time.Now().Unix()
-	result, err := db.Exec(
+
+	tx, err := db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	rows, err := tx.Query(`SELECT candidate_id FROM snapshots WHERE node_id = ?`, nodeID)
+	if err != nil {
+		return err
+	}
+
+	var candidateIDs []string
+	for rows.Next() {
+		var cid string
+		if err := rows.Scan(&cid); err != nil {
+			continue
+		}
+		candidateIDs = append(candidateIDs, cid)
+	}
+	rows.Close()
+
+	for _, cid := range candidateIDs {
+		tx.Exec(`DELETE FROM snapshots_fts WHERE candidate_id = ?`, cid)
+		tx.Exec(`DELETE FROM candidate_vec WHERE candidate_id = ?`, cid)
+	}
+
+	_, err = tx.Exec(`DELETE FROM snapshots WHERE node_id = ?`, nodeID)
+	if err != nil {
+		return err
+	}
+
+	result, err := tx.Exec(
 		`UPDATE nodes SET is_active = 0, revoked_at = ? WHERE id = ?`,
 		now, nodeID,
 	)
@@ -72,7 +104,13 @@ func RevokeNode(db *sql.DB, nodeID string) error {
 	if n == 0 {
 		return sql.ErrNoRows
 	}
-	return nil
+
+	return tx.Commit()
+}
+
+func SetNodePublicKey(db *sql.DB, nodeID string, pub []byte) error {
+	_, err := db.Exec(`UPDATE nodes SET public_key = ? WHERE id = ?`, pub, nodeID)
+	return err
 }
 
 func UpdateNodePing(db *sql.DB, nodeID string) error {

@@ -15,6 +15,7 @@ import (
 	"hirebridge/internal/config"
 	"hirebridge/internal/federation"
 	"hirebridge/internal/httpapi"
+	"hirebridge/internal/httpapi/middleware"
 	"hirebridge/internal/logging"
 	"hirebridge/internal/service"
 	"hirebridge/internal/store"
@@ -86,20 +87,36 @@ func main() {
 
 		go func() {
 			logger.Info("federation listening", "addr", fedCfg.Port)
-			if err := http.ListenAndServe(fedCfg.Port, fedHandler.Routes()); err != nil {
+			fedSrv := &http.Server{
+				Addr:         fedCfg.Port,
+				Handler:      fedHandler.Routes(),
+				ReadTimeout:  10 * time.Second,
+				WriteTimeout: 10 * time.Second,
+				IdleTimeout:  60 * time.Second,
+			}
+			if err := fedSrv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 				logger.Error("federation server error", "error", err)
 			}
 		}()
 	}
 
+	adminSessions := middleware.NewAdminSessions(2 * time.Hour)
+	adminPending := middleware.NewAdminPendingLinks(cfg.MagicTTL)
+
 	handler := httpapi.NewServer(httpapi.ServerConfig{
-		DB:        db,
-		Logger:    logger,
-		AuthSvc:   authSvc,
-		IngestSvc: ingestSvc,
-		SearchSvc: searchSvc,
-		BaseURL:   cfg.BaseURL,
-		StaleAge:  cfg.NodeStaleAge,
+		DB:            db,
+		Logger:        logger,
+		AuthSvc:       authSvc,
+		IngestSvc:     ingestSvc,
+		SearchSvc:     searchSvc,
+		BaseURL:       cfg.BaseURL,
+		StaleAge:      cfg.NodeStaleAge,
+		MCPEndpoint:   cfg.MCPEndpoint,
+		AdminEmail:    cfg.AdminEmail,
+		MagicTTL:      cfg.MagicTTL,
+		AdminSessions: adminSessions,
+		AdminPending:  adminPending,
+		SendMagicLink: mailer.SendMagicLink,
 	})
 
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)

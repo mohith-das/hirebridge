@@ -43,7 +43,7 @@ func deviceCodeHash(deviceCode string) string {
 	return hex.EncodeToString(h[:])
 }
 
-func InsertDeviceSession(db *sql.DB, nodeType, endpointURL sql.NullString, ttl time.Duration) (deviceCode, userCode string, err error) {
+func InsertDeviceSession(db *sql.DB, nodeType, endpointURL sql.NullString, publicKey []byte, ttl time.Duration) (deviceCode, userCode string, err error) {
 	raw := make([]byte, 32)
 	if _, err := rand.Read(raw); err != nil {
 		return "", "", fmt.Errorf("generate device_code: %w", err)
@@ -58,9 +58,9 @@ func InsertDeviceSession(db *sql.DB, nodeType, endpointURL sql.NullString, ttl t
 	if nodeType.Valid && endpointURL.Valid {
 		id := NewID()
 		_, err = db.Exec(
-			`INSERT INTO nodes (id, user_id, node_type, endpoint_url, is_active, created_at)
-			 VALUES (?, NULL, ?, ?, 1, ?)`,
-			id, nodeType.String, endpointURL.String, now,
+			`INSERT INTO nodes (id, user_id, node_type, endpoint_url, is_active, created_at, public_key)
+			 VALUES (?, NULL, ?, ?, 1, ?, ?)`,
+			id, nodeType.String, endpointURL.String, now, publicKey,
 		)
 		if err != nil {
 			return "", "", fmt.Errorf("create node: %w", err)

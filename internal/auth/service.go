@@ -110,7 +110,7 @@ func (s *Service) approveDevice(codeHash, userID string) (*CallbackResult, error
 	}, nil
 }
 
-func (s *Service) InitiateDeviceFlow(nodeType, endpointURL string) (*DeviceInitResponse, error) {
+func (s *Service) InitiateDeviceFlow(nodeType, endpointURL string, publicKey []byte) (*DeviceInitResponse, error) {
 	var nt, ep sql.NullString
 	if nodeType != "" {
 		nt = sql.NullString{String: nodeType, Valid: true}
@@ -119,7 +119,7 @@ func (s *Service) InitiateDeviceFlow(nodeType, endpointURL string) (*DeviceInitR
 		ep = sql.NullString{String: endpointURL, Valid: true}
 	}
 
-	deviceCode, userCode, err := repo.InsertDeviceSession(s.DB, nt, ep, s.MagicTTL)
+	deviceCode, userCode, err := repo.InsertDeviceSession(s.DB, nt, ep, publicKey, s.MagicTTL)
 	if err != nil {
 		return nil, fmt.Errorf("insert device session: %w", err)
 	}

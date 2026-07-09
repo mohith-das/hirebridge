@@ -50,6 +50,7 @@ jobs:
       - name: Write config
         env:
           SMTP_PASS: ${{ secrets.HIREBRIDGE_SMTP_PASSWORD }}
+          ADMIN_EMAIL: ${{ secrets.HIREBRIDGE_NODE_ADMIN_EMAIL }}
         run: |
           cat > /tmp/hirebridge.env <<EOF
           HB_BASE_URL=https://hirebridge.dev
@@ -71,6 +72,7 @@ jobs:
           HB_FEDERATION_ENDPOINT=http://hirebridge.dev:8400
           HB_FEDERATION_DISCOVERY_URL=http://hirebridge.dev:8400
           HB_FEDERATION_SYNC_INTERVAL=5m
+          HB_ADMIN_EMAIL=${ADMIN_EMAIL}
 EOF
           sed -i 's/^          //' /tmp/hirebridge.env
 

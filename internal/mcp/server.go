@@ -19,7 +19,7 @@ type MCPServer struct {
 	DB        *sql.DB
 }
 
-func NewMCPServer(searchSvc *service.SearchService, db *sql.DB, baseURL string) *server.StreamableHTTPServer {
+func NewMCPServer(searchSvc *service.SearchService, db *sql.DB, baseURL string, endpointPath string) *server.StreamableHTTPServer {
 	s := &MCPServer{SearchSvc: searchSvc, DB: db}
 
 	mcpServer := server.NewMCPServer(
@@ -32,7 +32,7 @@ func NewMCPServer(searchSvc *service.SearchService, db *sql.DB, baseURL string) 
 	s.registerTools(mcpServer)
 
 	streamableHTTP := server.NewStreamableHTTPServer(mcpServer,
-		server.WithEndpointPath("/mcp"),
+		server.WithEndpointPath(endpointPath),
 		server.WithStateLess(true),
 		server.WithProtectedResourceMetadata(server.ProtectedResourceMetadataConfig{
 			Resource:             baseURL,
@@ -125,15 +125,19 @@ func (s *MCPServer) handleRequestIntroduction(ctx context.Context, req mcp.CallT
 
 	recruiterUserID := middleware.UserIDFromContext(ctx)
 
-	snap, _ := repo.GetSnapshotByCandidate(s.DB, candidateID)
-	var nodeID string
-	if snap != nil {
-		nodeID = snap.NodeID
+	snap, err := repo.GetSnapshotByCandidate(s.DB, candidateID)
+	if err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("lookup failed: %v", err)), nil
 	}
+	if snap == nil {
+		return mcp.NewToolResultError("candidate not found"), nil
+	}
+
+	nodeID := snap.NodeID
 
 	requestID := repo.NewID()
 	if err := repo.InsertIntroductionRequest(s.DB, requestID, candidateID, recruiterUserID, nodeID); err != nil {
-		s.SearchSvc.Logger.Warn("failed to persist intro request", "error", err)
+		return mcp.NewToolResultError(fmt.Sprintf("failed to queue introduction: %v", err)), nil
 	}
 	if err := repo.InsertAuditLog(s.DB, recruiterUserID, "intro_requested", candidateID); err != nil {
 		s.SearchSvc.Logger.Warn("audit write failed", "error", err)
