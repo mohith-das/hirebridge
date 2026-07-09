@@ -73,14 +73,20 @@ HB_LISTEN=:80
 HB_DB_PATH=/opt/hirebridge/data/hirebridge.db
 HB_VEC0_PATH=/app/ext/vec0.so
 HB_EMBED_DIM=384
-HB_TLS_DOMAIN=
+HB_TLS_DOMAIN=hirebridge.dev
 HB_MAILER_PROVIDER=smtp
 HB_SMTP_HOST=smtp.purelymail.com
 HB_SMTP_PORT=587
 HB_SMTP_USER=noreply@hirebridge.dev
 HB_SMTP_PASS=${{ secrets.HIREBRIDGE_SMTP_PASSWORD }}
 HB_SMTP_FROM=noreply@hirebridge.dev
-HB_FEDERATION_ENABLED=false
+HB_FEDERATION_ENABLED=true
+HB_FEDERATION_PORT=:8400
+HB_FEDERATION_INSTANCE_NAME=hirebridge-dev
+HB_FEDERATION_KEY_PATH=/opt/hirebridge/data/federation_key.json
+HB_FEDERATION_ENDPOINT=http://hirebridge.dev:8400
+HB_FEDERATION_DISCOVERY_URL=http://hirebridge.dev:8400
+HB_FEDERATION_SYNC_INTERVAL=5m
 ENVEOF
 
           $SSH "sudo chmod 600 /opt/hirebridge/.env && sudo chown hirebridge:hirebridge /opt/hirebridge/.env && sudo systemctl restart hirebridge"
@@ -89,4 +95,5 @@ ENVEOF
         run: |
           SSH_OPTS="-i ~/.ssh/deploy_key -o StrictHostKeyChecking=accept-new -o ConnectTimeout=10"
           ssh $SSH_OPTS ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} \
-            "sleep 2 && curl -sf http://localhost:80/healthz && echo ' OK' || echo ' FAIL'"
+            "curl -sf http://localhost:80/healthz && echo ' HTTP OK' && \
+             curl -sfk https://localhost/healthz && echo ' HTTPS OK'"
