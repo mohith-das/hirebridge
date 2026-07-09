@@ -25,5 +25,5 @@ func HTML(w http.ResponseWriter, name string, data any) {
 
 func Static() http.Handler {
 	sub, _ := fs.Sub(assets, "static")
-	return http.FileServer(http.FS(sub))
+	return http.StripPrefix("/static/", http.FileServer(http.FS(sub)))
 }
