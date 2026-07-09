@@ -57,8 +57,8 @@ REMOTE
         run: |
           ssh -i ~/.ssh/deploy_key -o ConnectTimeout=10 $SSH_USER@$SSH_HOST \
             "sudo tee /opt/hirebridge/.env > /dev/null" <<ENVEOF
-HB_BASE_URL=https://hirebridge.dev
-HB_LISTEN=:8080
+HB_BASE_URL=http://hirebridge.dev
+HB_LISTEN=:80
 HB_DB_PATH=/opt/hirebridge/data/hirebridge.db
 HB_VEC0_PATH=/app/ext/vec0.so
 HB_EMBED_DIM=384
