@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>HireBridge — API Docs</title>
 <link rel="stylesheet" href="/static/brutalist.css">
+<script src="/static/theme.js"></script>
 <style>
   body{max-width:none;margin:0;padding:0}
   redoc{display:block}
@@ -26,15 +27,22 @@
   </a>
   <div class="nav-links">
     <a href="/docs" class="nav-active">Docs</a>
+    <button class="nav-btn" onclick="toggleTheme()">🌓 Theme</button>
   </div>
 </nav>
-<redoc spec-url="/api/openapi.json"
+<redoc id="redoc-container" spec-url="/api/openapi.json"
        scroll-y-offset="nav"
        native-scrollbars
        hide-download-button
-       disable-search
-       theme='{"colors":{"primary":{"main":"#0cf"},"text":{"primary":"#eee","secondary":"#aaa"},"http":{"get":"#0f0","post":"#0cf"},"sidebar":{"background":"#111","text":"#eee","activeText":"#0cf"},"border":"#444"}}'>
+       disable-search>
 </redoc>
+<script>
+  const redoc = document.getElementById('redoc-container');
+  const darkTheme = '{"colors":{"primary":{"main":"#0cf"},"text":{"primary":"#eee","secondary":"#aaa"},"http":{"get":"#0f0","post":"#0cf"},"sidebar":{"background":"#111","text":"#eee","activeText":"#0cf"},"border":"#444"}}';
+  const lightTheme = '{"colors":{"primary":{"main":"#0072ff"},"text":{"primary":"#333","secondary":"#666"},"http":{"get":"#10b981","post":"#0072ff"},"sidebar":{"background":"#f4f4f5","text":"#333","activeText":"#0072ff"},"border":"#e4e4e7"}}';
+  redoc.setAttribute('theme', document.documentElement.getAttribute('data-theme') === 'light' ? lightTheme : darkTheme);
+  window.updateRedocTheme = function() { location.reload(); };
+</script>
 <script src="/static/redoc.js"></script>
 </body>
 </html>

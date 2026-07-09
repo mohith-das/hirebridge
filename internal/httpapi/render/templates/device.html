@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>HireBridge — Device Verification</title>
 <link rel="stylesheet" href="/static/brutalist.css">
+<script src="/static/theme.js"></script>
 </head>
 <body>
 <div class="bg-gradient"></div>
@@ -23,6 +24,7 @@
   </a>
   <div class="nav-links">
     <a href="/docs">Docs</a>
+    <button class="nav-btn" onclick="toggleTheme()">🌓 Theme</button>
     {{if .Email}}
     <form method="post" action="/auth/logout" style="display:inline">
       <button type="submit" class="nav-btn">Log Out ({{.Email}})</button>

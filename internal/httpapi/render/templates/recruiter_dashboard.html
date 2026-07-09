@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>HireBridge — Recruiter Dashboard</title>
 <link rel="stylesheet" href="/static/brutalist.css">
+<script src="/static/theme.js"></script>
 </head>
 <body>
 <nav class="navbar">
@@ -22,6 +23,7 @@
   </a>
   <div class="nav-links">
     <a href="/docs">Docs</a>
+    <button class="nav-btn" onclick="toggleTheme()">🌓 Theme</button>
     <form method="post" action="/auth/logout" style="display:inline">
       <button type="submit" class="nav-btn">Log Out</button>
     </form>
