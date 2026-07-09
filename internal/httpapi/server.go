@@ -89,6 +89,8 @@ func (s *Server) build() http.Handler {
 
 	r.Get("/", webH.Landing)
 	r.Get("/docs", webH.Docs)
+	r.Get("/instructions/talent", webH.InstructionsTalent)
+	r.Get("/instructions/recruiter", webH.InstructionsRecruiter)
 
 	r.Get("/api/openapi.json", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")

@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>HireBridge — Talent Instructions</title>
+<link rel="stylesheet" href="/static/brutalist.css">
+<script src="/static/theme.js"></script>
+</head>
+<body>
+<div class="bg-gradient"></div>
+<nav class="navbar">
+  <a href="/" class="nav-brand">
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="url(#blue-grad)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+      <defs>
+        <linearGradient id="blue-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stop-color="var(--accent-blue)" />
+          <stop offset="100%" stop-color="var(--accent-purple)" />
+        </linearGradient>
+      </defs>
+      <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line>
+    </svg>
+    HireBridge
+  </a>
+  <div class="nav-links">
+    <a href="/docs">Docs</a>
+    <button class="nav-btn" onclick="toggleTheme()">🌓 Theme</button>
+  </div>
+</nav>
+
+<div class="container">
+  <div class="glass-panel" style="margin-top: 2rem;">
+    <h1 class="gradient-text">How to Use HireBridge as Talent</h1>
+    <p class="hero-subtitle">Maintain complete ownership of your career data while allowing recruiters to discover you securely.</p>
+    
+    <h2>1. The Concept</h2>
+    <p>Unlike traditional job boards, HireBridge doesn't store your data in a centralized database. Instead, you run an <strong>Edge Node</strong> on your own machine. This node securely pushes periodic snapshots of your career data to the HireBridge index, allowing recruiters to search for your skills.</p>
+    
+    <h2>2. How We Know You're "Talent"</h2>
+    <p>You don't need to choose an account type when you sign up! When you connect an Edge Node (like LivingCV or jobops) to your account via the <a href="/device">Device Verification</a> process, HireBridge automatically recognizes you as Talent and redirects you to the <strong>Talent Dashboard</strong> whenever you log in.</p>
+
+    <hr style="border: 0; border-top: 1px solid var(--border-color); margin: 2rem 0;">
+
+    <h2>3. Setup Your Node</h2>
+    <p>You can choose between two open-source edge node implementations based on your preference:</p>
+    
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin-top: 1.5rem;">
+      <div class="glass-panel" style="padding: 1.5rem;">
+        <h3>LivingCV (Go)</h3>
+        <p>A lightweight, fast CLI written in Go. Ideal if you prefer a single compiled binary.</p>
+        <p><strong>Setup:</strong></p>
+        <pre><code>git clone https://github.com/mohith-das/livingcv
+cd livingcv
+go build
+./livingcv serve</code></pre>
+        <p><a href="https://github.com/mohith-das/livingcv" target="_blank" style="font-weight: 600;">View Repository &rarr;</a></p>
+      </div>
+
+      <div class="glass-panel" style="padding: 1.5rem;">
+        <h3>jobops (Node.js)</h3>
+        <p>A Node.js implementation available on npm. Perfect if you already use npm in your daily workflow.</p>
+        <p><strong>Setup:</strong></p>
+        <pre><code>npx jobops serve</code></pre>
+        <p>Alternatively, install it globally:</p>
+        <pre><code>npm install -g jobops
+jobops serve</code></pre>
+        <p><a href="https://www.npmjs.com/package/jobops" target="_blank" style="font-weight: 600;">View on npmjs &rarr;</a></p>
+      </div>
+    </div>
+
+    <hr style="border: 0; border-top: 1px solid var(--border-color); margin: 2rem 0;">
+
+    <h2>4. Connect Your Node</h2>
+    <p>When you start either node for the first time, it will print a <strong>Device Code</strong> in your terminal and give you a verification URL.</p>
+    <ol style="color: var(--text-secondary); line-height: 1.8;">
+      <li>Go to the <a href="/device">Verification Page</a>.</li>
+      <li>Enter the code provided by your CLI.</li>
+      <li>If you aren't logged in, HireBridge will send a magic link to your email to authenticate you securely.</li>
+      <li>Once approved, your node will automatically begin pushing your secure, signed resume snapshots to the network!</li>
+    </ol>
+  </div>
+</div>
+</body>
+</html>

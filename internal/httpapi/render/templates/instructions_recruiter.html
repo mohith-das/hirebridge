@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>HireBridge — Recruiter Instructions</title>
+<link rel="stylesheet" href="/static/brutalist.css">
+<script src="/static/theme.js"></script>
+</head>
+<body>
+<div class="bg-gradient"></div>
+<nav class="navbar">
+  <a href="/" class="nav-brand">
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="url(#blue-grad)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+      <defs>
+        <linearGradient id="blue-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stop-color="var(--accent-blue)" />
+          <stop offset="100%" stop-color="var(--accent-purple)" />
+        </linearGradient>
+      </defs>
+      <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line>
+    </svg>
+    HireBridge
+  </a>
+  <div class="nav-links">
+    <a href="/docs">Docs</a>
+    <button class="nav-btn" onclick="toggleTheme()">🌓 Theme</button>
+  </div>
+</nav>
+
+<div class="container">
+  <div class="glass-panel" style="margin-top: 2rem;">
+    <h1 class="gradient-text">How to Use HireBridge as a Recruiter</h1>
+    <p class="hero-subtitle">Leverage AI agents to instantly search and discover talent across the decentralized network.</p>
+    
+    <h2>1. How We Know You're a Recruiter</h2>
+    <p>By default, when you log into HireBridge using a Magic Link from the homepage, you are directed to the <strong>Recruiter Dashboard</strong>. The system assumes you are a Recruiter unless you have a Talent Node (like LivingCV or jobops) connected to your account. No complex account selection needed!</p>
+
+    <hr style="border: 0; border-top: 1px solid var(--border-color); margin: 2rem 0;">
+
+    <h2>2. Get Your API Key</h2>
+    <p>To start searching the network, you need to connect your AI assistant (like Claude Desktop) to the HireBridge MCP server.</p>
+    <ol style="color: var(--text-secondary); line-height: 1.8;">
+      <li>Navigate to the <a href="/">Homepage</a> and enter your email to get a Magic Link.</li>
+      <li>Click the link in your email to instantly log in.</li>
+      <li>In the <strong>Recruiter Dashboard</strong>, click the button to generate a new <strong>MCP API Key</strong>.</li>
+      <li><strong>Copy this key immediately!</strong> For security reasons, it will only be shown to you once.</li>
+    </ol>
+
+    <hr style="border: 0; border-top: 1px solid var(--border-color); margin: 2rem 0;">
+
+    <h2>3. Configure Claude Desktop</h2>
+    <p>HireBridge exposes a Model Context Protocol (MCP) server that AI agents can use to search candidate resumes and request introductions.</p>
+    
+    <div class="glass-panel" style="padding: 1.5rem; margin-top: 1rem;">
+      <h3>Setup Instructions</h3>
+      <p>1. Open your Claude Desktop configuration file. Usually located at:</p>
+      <ul style="color: var(--text-secondary); margin-bottom: 1rem;">
+        <li><strong>Mac:</strong> <code>~/Library/Application Support/Claude/claude_desktop_config.json</code></li>
+        <li><strong>Windows:</strong> <code>%APPDATA%\Claude\claude_desktop_config.json</code></li>
+      </ul>
+      <p>2. Add the HireBridge MCP server using your API key:</p>
+      <pre><code>{
+  "mcpServers": {
+    "hirebridge": {
+      "command": "curl",
+      "args": [
+        "-s",
+        "-X", "POST",
+        "-H", "Authorization: Bearer YOUR_API_KEY",
+        "-H", "Content-Type: application/json",
+        "https://hirebridge.dev/mcp"
+      ]
+    }
+  }
+}</code></pre>
+      <p>3. Restart Claude Desktop. You can now simply ask Claude: <em>"Search the talent network for senior Go developers with distributed systems experience"</em> and the agent will intelligently query the network on your behalf!</p>
+    </div>
+  </div>
+</div>
+</body>
+</html>

@@ -28,6 +28,14 @@ func (h *WebUIHandler) Docs(w http.ResponseWriter, r *http.Request) {
 	render.HTML(w, "docs.html", nil)
 }
 
+func (h *WebUIHandler) InstructionsTalent(w http.ResponseWriter, r *http.Request) {
+	render.HTML(w, "instructions_talent.html", nil)
+}
+
+func (h *WebUIHandler) InstructionsRecruiter(w http.ResponseWriter, r *http.Request) {
+	render.HTML(w, "instructions_recruiter.html", nil)
+}
+
 func (h *WebUIHandler) DashboardRedirect(w http.ResponseWriter, r *http.Request) {
 	userID := middleware.UserIDFromContext(r.Context())
 	if userID == "" {
