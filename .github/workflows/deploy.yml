@@ -17,38 +17,37 @@ jobs:
 
       - name: Build binary
         run: |
-          CGO_ENABLED=1 GOOS=linux GOARCH=amd64 \
-            go build -tags "sqlite_fts5 sqlite_load_extension" \
+          CGO_ENABLED=1 go build \
+            -tags "sqlite_fts5 sqlite_load_extension" \
             -ldflags="-s -w" \
             -o hirebridge \
             ./cmd/hirebridge
 
-      - name: Install SSH key
+      - name: Deploy
+        env:
+          SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          SSH_HOST: ${{ secrets.DEPLOY_HOST }}
+          SSH_USER: ${{ secrets.DEPLOY_USER }}
         run: |
+          set -e
           mkdir -p ~/.ssh
-          echo "${{ secrets.DEPLOY_SSH_KEY }}" > ~/.ssh/deploy_key
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
-          ssh-keyscan -H ${{ secrets.DEPLOY_HOST }} >> ~/.ssh/known_hosts
+          ssh-keyscan -H "$SSH_HOST" >> ~/.ssh/known_hosts 2>/dev/null
 
-      - name: Deploy binary
-        run: |
-          scp -i ~/.ssh/deploy_key \
-            hirebridge \
-            ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:/opt/hirebridge/hirebridge.new
+          SSH="ssh -i ~/.ssh/deploy_key -o ConnectTimeout=10 $SSH_USER@$SSH_HOST"
 
-      - name: Write config and restart
-        run: |
-          ssh -i ~/.ssh/deploy_key ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} \
-            "sudo tee /opt/hirebridge/.env > /dev/null && \
-             sudo chmod 600 /opt/hirebridge/.env && \
-             sudo chown hirebridge:hirebridge /opt/hirebridge/.env && \
-             sudo systemctl stop hirebridge || true && \
-             sudo mv /opt/hirebridge/hirebridge.new /opt/hirebridge/hirebridge && \
-             sudo chmod +x /opt/hirebridge/hirebridge && \
-             sudo chown hirebridge:hirebridge /opt/hirebridge/hirebridge && \
-             sudo systemctl start hirebridge && \
-             sleep 2 && \
-             sudo systemctl status hirebridge --no-pager | head -5" <<ENVEOF
+          echo "::group::Test SSH"
+          $SSH "echo connected && uname -a"
+          echo "::endgroup::"
+
+          echo "::group::Upload binary"
+          scp -i ~/.ssh/deploy_key -o ConnectTimeout=10 \
+            hirebridge $SSH_USER@$SSH_HOST:/opt/hirebridge/hirebridge.new
+          echo "::endgroup::"
+
+          echo "::group::Write config & restart"
+          $SSH "sudo tee /opt/hirebridge/.env > /dev/null" <<ENVEOF
 HB_BASE_URL=https://hirebridge.dev
 HB_LISTEN=:8080
 HB_DB_PATH=/opt/hirebridge/data/hirebridge.db
@@ -69,7 +68,22 @@ HB_FEDERATION_DISCOVERY_URL=http://hirebridge.dev:8400
 HB_FEDERATION_SYNC_INTERVAL=5m
 ENVEOF
 
+          $SSH "sudo bash -c '
+            set -e
+            mkdir -p /opt/hirebridge/data /opt/hirebridge/certs /app/ext
+            chmod 600 /opt/hirebridge/.env
+            chown hirebridge:hirebridge /opt/hirebridge/.env
+            systemctl stop hirebridge || true
+            mv /opt/hirebridge/hirebridge.new /opt/hirebridge/hirebridge
+            chmod +x /opt/hirebridge/hirebridge
+            chown hirebridge:hirebridge /opt/hirebridge/hirebridge
+            systemctl start hirebridge
+            sleep 2
+            systemctl status hirebridge --no-pager | head -5
+          '"
+          echo "::endgroup::"
+
       - name: Health check
         run: |
-          ssh -i ~/.ssh/deploy_key ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} \
+          ssh -i ~/.ssh/deploy_key -o ConnectTimeout=10 ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} \
             "curl -sf http://localhost:8080/healthz && echo ' OK' || echo ' FAIL'"
