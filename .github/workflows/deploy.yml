@@ -24,52 +24,45 @@ jobs:
             ./cmd/hirebridge
 
       - name: Deploy
-        env:
-          SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
-          SSH_HOST: ${{ secrets.DEPLOY_HOST }}
-          SSH_USER: ${{ secrets.DEPLOY_USER }}
         run: |
           set -e
-          mkdir -p ~/.ssh
-          printf '%s\n' "$SSH_KEY" > ~/.ssh/deploy_key
-          chmod 600 ~/.ssh/deploy_key
 
-          SSH_OPTS="-i ~/.ssh/deploy_key -o StrictHostKeyChecking=accept-new -o ConnectTimeout=10"
-          SCP="scp $SSH_OPTS"
-          SSH="ssh $SSH_OPTS $SSH_USER@$SSH_HOST"
+          echo "${SSH_KEY}" > /tmp/deploy_key
+          chmod 600 /tmp/deploy_key
 
-          echo "--- Uploading binary ---"
-          $SCP hirebridge $SSH_USER@$SSH_HOST:/tmp/hirebridge.new
+          SCP="scp -i /tmp/deploy_key -o StrictHostKeyChecking=no -o ConnectTimeout=10"
+          SSH="ssh -i /tmp/deploy_key -o StrictHostKeyChecking=no -o ConnectTimeout=10"
+
+          echo "--- Testing SSH ---"
+          $SSH ${SSH_USER}@${SSH_HOST} "echo connected"
 
           echo "--- Stopping service ---"
-          $SSH "sudo systemctl stop hirebridge || true"
+          $SSH ${SSH_USER}@${SSH_HOST} "sudo systemctl stop hirebridge || true"
+
+          echo "--- Uploading binary ---"
+          $SCP hirebridge ${SSH_USER}@${SSH_HOST}:/tmp/hirebridge.new
 
           echo "--- Installing binary ---"
-          $SSH "sudo bash -s" <<'REMOTE'
+          $SSH ${SSH_USER}@${SSH_HOST} "sudo bash -s" <<'RC'
 set -e
 chmod +x /tmp/hirebridge.new
 chown hirebridge:hirebridge /tmp/hirebridge.new
 mv /tmp/hirebridge.new /opt/hirebridge/hirebridge
 mkdir -p /opt/hirebridge/data /opt/hirebridge/certs /app/ext
 chown hirebridge:hirebridge /opt/hirebridge/data /opt/hirebridge/certs
-REMOTE
-
-          echo "--- Starting service ---"
-          $SSH "sudo systemctl start hirebridge"
-          sleep 2
-          $SSH "sudo systemctl status hirebridge --no-pager | head -5"
-
-      - name: Write config
+RC
         env:
+          SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
           SSH_HOST: ${{ secrets.DEPLOY_HOST }}
           SSH_USER: ${{ secrets.DEPLOY_USER }}
-        run: |
-          SSH_OPTS="-i ~/.ssh/deploy_key -o StrictHostKeyChecking=accept-new -o ConnectTimeout=10"
-          SSH="ssh $SSH_OPTS $SSH_USER@$SSH_HOST"
 
-          $SSH "sudo tee /opt/hirebridge/.env > /dev/null" <<ENVEOF
-HB_BASE_URL=http://hirebridge.dev
-HB_LISTEN=:80
+      - name: Write config and restart
+        run: |
+          SSH="ssh -i /tmp/deploy_key -o StrictHostKeyChecking=no -o ConnectTimeout=10"
+
+          $SSH ${SSH_USER}@${SSH_HOST} "sudo tee /opt/hirebridge/.env > /dev/null" <<ENVEOF
+HB_BASE_URL=https://hirebridge.dev
+HB_LISTEN=:8080
 HB_DB_PATH=/opt/hirebridge/data/hirebridge.db
 HB_VEC0_PATH=/app/ext/vec0.so
 HB_EMBED_DIM=384
@@ -78,7 +71,7 @@ HB_MAILER_PROVIDER=smtp
 HB_SMTP_HOST=smtp.purelymail.com
 HB_SMTP_PORT=587
 HB_SMTP_USER=noreply@hirebridge.dev
-HB_SMTP_PASS=${{ secrets.HIREBRIDGE_SMTP_PASSWORD }}
+HB_SMTP_PASS=${SMTP_PASS}
 HB_SMTP_FROM=noreply@hirebridge.dev
 HB_FEDERATION_ENABLED=true
 HB_FEDERATION_PORT=:8400
@@ -88,12 +81,19 @@ HB_FEDERATION_ENDPOINT=http://hirebridge.dev:8400
 HB_FEDERATION_DISCOVERY_URL=http://hirebridge.dev:8400
 HB_FEDERATION_SYNC_INTERVAL=5m
 ENVEOF
-
-          $SSH "sudo chmod 600 /opt/hirebridge/.env && sudo chown hirebridge:hirebridge /opt/hirebridge/.env && sudo systemctl restart hirebridge"
+          $SSH ${SSH_USER}@${SSH_HOST} "sudo chmod 600 /opt/hirebridge/.env && sudo chown hirebridge:hirebridge /opt/hirebridge/.env && sudo systemctl restart hirebridge"
+        env:
+          SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          SSH_HOST: ${{ secrets.DEPLOY_HOST }}
+          SSH_USER: ${{ secrets.DEPLOY_USER }}
+          SMTP_PASS: ${{ secrets.HIREBRIDGE_SMTP_PASSWORD }}
 
       - name: Health check
         run: |
-          SSH_OPTS="-i ~/.ssh/deploy_key -o StrictHostKeyChecking=accept-new -o ConnectTimeout=10"
-          ssh $SSH_OPTS ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} \
-            "curl -sf http://localhost:80/healthz && echo ' HTTP OK' && \
-             curl -sfk https://localhost/healthz && echo ' HTTPS OK'"
+          ssh -i /tmp/deploy_key -o StrictHostKeyChecking=no -o ConnectTimeout=10 \
+            ${SSH_USER}@${SSH_HOST} \
+            "sleep 2 && curl -sf http://localhost:80/healthz && echo ' HTTP' && curl -sfk https://localhost/healthz && echo ' HTTPS'"
+        env:
+          SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          SSH_HOST: ${{ secrets.DEPLOY_HOST }}
+          SSH_USER: ${{ secrets.DEPLOY_USER }}
