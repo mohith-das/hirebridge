@@ -42,7 +42,7 @@ HireBridge is designed to run on **the smallest possible machine**—1 vCPU, 1 G
 | Search fusion | **Reciprocal Rank Fusion** (BM25 + vec0) | Pure BM25 when no query vector; KNN re-rank when caller supplies one |
 | Auth | **Magic link** (web) + **OAuth 2.1 Device Authorization Grant** (CLI, RFC 8628) | Passwordless; long-lived opaque bearer tokens validated by SHA-256 hash lookup |
 | MCP transport | **Streamable HTTP**, stateless POST | `mark3labs/mcp-go`; `/.well-known/oauth-protected-resource` (RFC 9728) |
-| UI | **Go `html/template`** + brutalist CSS | Server-side rendered; no SPA, no JS framework, no Node build step |
+| UI | **Go `html/template`** + Brutalist Glassmorphism | Server-side rendered; no SPA, no JS framework, includes built-in dark/light theme switcher |
 | TLS | **Go `autocert`** (Let's Encrypt) | No reverse proxy needed—saves ~30 MB RAM |
 | Deploy | **Docker** multi-stage (CGO + `vec0.so`) | `distroless-static` final image; hardened `systemd` unit for OCI Free Tier |
 
@@ -113,16 +113,17 @@ The multi-stage Dockerfile:
 2. Downloads the official `vec0.so` from [sqlite-vec releases](https://github.com/asg017/sqlite-vec/releases)
 3. Produces a `distroless-static` image with the binary and extension
 
-### OCI Free Tier deployment
+### Automated CI/CD Deployment
 
-Copy the binary, extension, and systemd unit to the instance:
+HireBridge includes a pre-configured GitHub Actions workflow (`.github/workflows/deploy.yml`) for seamless deployments to production (e.g., OCI Free Tier). 
 
-```bash
-scp hirebridge user@oci-instance:/opt/hirebridge/
-scp vec0.so user@oci-instance:/app/ext/vec0.so
-scp deploy/oci/systemd.service user@oci-instance:/etc/systemd/system/hirebridge.service
-ssh user@oci-instance "sudo systemctl enable --now hirebridge"
-```
+When you push to the `main` branch, the workflow will automatically:
+1. Check out the code.
+2. Build the optimized Go binary with `sqlite_fts5` and `sqlite_load_extension`.
+3. Securely SSH into your server (using your GitHub Repository Secrets: `SERVER_HOST`, `SERVER_USERNAME`, `SERVER_SSH_KEY`).
+4. Replace the old binary and restart the `hirebridge` systemd service with zero downtime.
+
+If you prefer manual deployment, you can simply use `scp` to copy the binary and `systemd` service over to your server.
 
 The hardened systemd unit runs with `NoNewPrivileges=yes`, `ProtectSystem=strict`, and `PrivateTmp=yes`.
 
