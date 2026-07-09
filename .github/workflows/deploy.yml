@@ -35,19 +35,28 @@ jobs:
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan -H "$SSH_HOST" >> ~/.ssh/known_hosts 2>/dev/null
 
-          SSH="ssh -i ~/.ssh/deploy_key -o ConnectTimeout=10 $SSH_USER@$SSH_HOST"
-
-          echo "::group::Test SSH"
-          $SSH "echo connected && uname -a"
-          echo "::endgroup::"
-
-          echo "::group::Upload binary"
           scp -i ~/.ssh/deploy_key -o ConnectTimeout=10 \
-            hirebridge $SSH_USER@$SSH_HOST:/opt/hirebridge/hirebridge.new
-          echo "::endgroup::"
+            hirebridge $SSH_USER@$SSH_HOST:/tmp/hirebridge.new
 
-          echo "::group::Write config & restart"
-          $SSH "sudo tee /opt/hirebridge/.env > /dev/null" <<ENVEOF
+          ssh -i ~/.ssh/deploy_key -o ConnectTimeout=10 $SSH_USER@$SSH_HOST "sudo bash -s" <<'REMOTE'
+set -e
+mkdir -p /opt/hirebridge/data /opt/hirebridge/certs /app/ext
+mv /tmp/hirebridge.new /opt/hirebridge/hirebridge
+chmod +x /opt/hirebridge/hirebridge
+chown hirebridge:hirebridge /opt/hirebridge/hirebridge
+systemctl stop hirebridge || true
+systemctl start hirebridge
+sleep 2
+systemctl status hirebridge --no-pager | head -5
+REMOTE
+
+      - name: Write config
+        env:
+          SSH_HOST: ${{ secrets.DEPLOY_HOST }}
+          SSH_USER: ${{ secrets.DEPLOY_USER }}
+        run: |
+          ssh -i ~/.ssh/deploy_key -o ConnectTimeout=10 $SSH_USER@$SSH_HOST \
+            "sudo tee /opt/hirebridge/.env > /dev/null" <<ENVEOF
 HB_BASE_URL=https://hirebridge.dev
 HB_LISTEN=:8080
 HB_DB_PATH=/opt/hirebridge/data/hirebridge.db
@@ -68,22 +77,14 @@ HB_FEDERATION_DISCOVERY_URL=http://hirebridge.dev:8400
 HB_FEDERATION_SYNC_INTERVAL=5m
 ENVEOF
 
-          $SSH "sudo bash -c '
-            set -e
-            mkdir -p /opt/hirebridge/data /opt/hirebridge/certs /app/ext
-            chmod 600 /opt/hirebridge/.env
-            chown hirebridge:hirebridge /opt/hirebridge/.env
-            systemctl stop hirebridge || true
-            mv /opt/hirebridge/hirebridge.new /opt/hirebridge/hirebridge
-            chmod +x /opt/hirebridge/hirebridge
-            chown hirebridge:hirebridge /opt/hirebridge/hirebridge
-            systemctl start hirebridge
-            sleep 2
-            systemctl status hirebridge --no-pager | head -5
-          '"
-          echo "::endgroup::"
+          ssh -i ~/.ssh/deploy_key -o ConnectTimeout=10 $SSH_USER@$SSH_HOST \
+            "sudo chmod 600 /opt/hirebridge/.env && sudo chown hirebridge:hirebridge /opt/hirebridge/.env && sudo systemctl restart hirebridge"
 
       - name: Health check
+        env:
+          SSH_HOST: ${{ secrets.DEPLOY_HOST }}
+          SSH_USER: ${{ secrets.DEPLOY_USER }}
         run: |
-          ssh -i ~/.ssh/deploy_key -o ConnectTimeout=10 ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} \
+          sleep 2
+          ssh -i ~/.ssh/deploy_key -o ConnectTimeout=10 $SSH_USER@$SSH_HOST \
             "curl -sf http://localhost:8080/healthz && echo ' OK' || echo ' FAIL'"
