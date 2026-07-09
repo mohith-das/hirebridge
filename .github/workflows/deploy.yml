@@ -33,58 +33,60 @@ jobs:
           mkdir -p ~/.ssh
           printf '%s\n' "$SSH_KEY" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
-          ssh-keyscan -H "$SSH_HOST" >> ~/.ssh/known_hosts 2>/dev/null
 
-          scp -i ~/.ssh/deploy_key -o ConnectTimeout=10 \
-            hirebridge $SSH_USER@$SSH_HOST:/tmp/hirebridge.new
+          SSH_OPTS="-i ~/.ssh/deploy_key -o StrictHostKeyChecking=accept-new -o ConnectTimeout=10"
+          SCP="scp $SSH_OPTS"
+          SSH="ssh $SSH_OPTS $SSH_USER@$SSH_HOST"
 
-          ssh -i ~/.ssh/deploy_key -o ConnectTimeout=10 $SSH_USER@$SSH_HOST "sudo bash -s" <<'REMOTE'
+          echo "--- Uploading binary ---"
+          $SCP hirebridge $SSH_USER@$SSH_HOST:/tmp/hirebridge.new
+
+          echo "--- Stopping service ---"
+          $SSH "sudo systemctl stop hirebridge || true"
+
+          echo "--- Installing binary ---"
+          $SSH "sudo bash -s" <<'REMOTE'
 set -e
-mkdir -p /opt/hirebridge/data /opt/hirebridge/certs /app/ext
+chmod +x /tmp/hirebridge.new
+chown hirebridge:hirebridge /tmp/hirebridge.new
 mv /tmp/hirebridge.new /opt/hirebridge/hirebridge
-chmod +x /opt/hirebridge/hirebridge
-chown hirebridge:hirebridge /opt/hirebridge/hirebridge
-systemctl stop hirebridge || true
-systemctl start hirebridge
-sleep 2
-systemctl status hirebridge --no-pager | head -5
+mkdir -p /opt/hirebridge/data /opt/hirebridge/certs /app/ext
+chown hirebridge:hirebridge /opt/hirebridge/data /opt/hirebridge/certs
 REMOTE
+
+          echo "--- Starting service ---"
+          $SSH "sudo systemctl start hirebridge"
+          sleep 2
+          $SSH "sudo systemctl status hirebridge --no-pager | head -5"
 
       - name: Write config
         env:
           SSH_HOST: ${{ secrets.DEPLOY_HOST }}
           SSH_USER: ${{ secrets.DEPLOY_USER }}
         run: |
-          ssh -i ~/.ssh/deploy_key -o ConnectTimeout=10 $SSH_USER@$SSH_HOST \
-            "sudo tee /opt/hirebridge/.env > /dev/null" <<ENVEOF
+          SSH_OPTS="-i ~/.ssh/deploy_key -o StrictHostKeyChecking=accept-new -o ConnectTimeout=10"
+          SSH="ssh $SSH_OPTS $SSH_USER@$SSH_HOST"
+
+          $SSH "sudo tee /opt/hirebridge/.env > /dev/null" <<ENVEOF
 HB_BASE_URL=http://hirebridge.dev
 HB_LISTEN=:80
 HB_DB_PATH=/opt/hirebridge/data/hirebridge.db
 HB_VEC0_PATH=/app/ext/vec0.so
 HB_EMBED_DIM=384
-HB_TLS_DOMAIN=hirebridge.dev
+HB_TLS_DOMAIN=
 HB_MAILER_PROVIDER=smtp
 HB_SMTP_HOST=smtp.purelymail.com
 HB_SMTP_PORT=587
 HB_SMTP_USER=noreply@hirebridge.dev
 HB_SMTP_PASS=${{ secrets.HIREBRIDGE_SMTP_PASSWORD }}
 HB_SMTP_FROM=noreply@hirebridge.dev
-HB_FEDERATION_ENABLED=true
-HB_FEDERATION_PORT=:8400
-HB_FEDERATION_INSTANCE_NAME=hirebridge-dev
-HB_FEDERATION_ENDPOINT=http://hirebridge.dev:8400
-HB_FEDERATION_DISCOVERY_URL=http://hirebridge.dev:8400
-HB_FEDERATION_SYNC_INTERVAL=5m
+HB_FEDERATION_ENABLED=false
 ENVEOF
 
-          ssh -i ~/.ssh/deploy_key -o ConnectTimeout=10 $SSH_USER@$SSH_HOST \
-            "sudo chmod 600 /opt/hirebridge/.env && sudo chown hirebridge:hirebridge /opt/hirebridge/.env && sudo systemctl restart hirebridge"
+          $SSH "sudo chmod 600 /opt/hirebridge/.env && sudo chown hirebridge:hirebridge /opt/hirebridge/.env && sudo systemctl restart hirebridge"
 
       - name: Health check
-        env:
-          SSH_HOST: ${{ secrets.DEPLOY_HOST }}
-          SSH_USER: ${{ secrets.DEPLOY_USER }}
         run: |
-          sleep 2
-          ssh -i ~/.ssh/deploy_key -o ConnectTimeout=10 $SSH_USER@$SSH_HOST \
-            "curl -sf http://localhost:8080/healthz && echo ' OK' || echo ' FAIL'"
+          SSH_OPTS="-i ~/.ssh/deploy_key -o StrictHostKeyChecking=accept-new -o ConnectTimeout=10"
+          ssh $SSH_OPTS ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} \
+            "sleep 2 && curl -sf http://localhost:80/healthz && echo ' OK' || echo ' FAIL'"
