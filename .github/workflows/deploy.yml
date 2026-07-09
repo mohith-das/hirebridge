@@ -33,57 +33,55 @@ jobs:
           SSH_USER: ${{ secrets.DEPLOY_USER }}
         run: |
           set -e
-          SSH="ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10"
+          SSH_OPTS="-o StrictHostKeyChecking=no -o ConnectTimeout=10"
 
-          echo "--- Testing SSH ---"
-          $SSH $SSH_USER@$SSH_HOST "echo connected"
+          echo "--- Test SSH ---"
+          ssh $SSH_OPTS $SSH_USER@$SSH_HOST "echo connected"
 
-          echo "--- Stopping service ---"
-          $SSH $SSH_USER@$SSH_HOST "sudo systemctl stop hirebridge || true"
+          echo "--- Stop service ---"
+          ssh $SSH_OPTS $SSH_USER@$SSH_HOST "sudo systemctl stop hirebridge || true"
 
-          echo "--- Uploading binary ---"
-          scp -o StrictHostKeyChecking=no hirebridge $SSH_USER@$SSH_HOST:/tmp/hirebridge.new
+          echo "--- Upload binary ---"
+          scp $SSH_OPTS hirebridge $SSH_USER@$SSH_HOST:/tmp/hirebridge.new
 
-          echo "--- Installing binary ---"
-          $SSH $SSH_USER@$SSH_HOST "sudo bash -s" <<'RC'
-set -e
-chmod +x /tmp/hirebridge.new
-chown hirebridge:hirebridge /tmp/hirebridge.new
-mv /tmp/hirebridge.new /opt/hirebridge/hirebridge
-mkdir -p /opt/hirebridge/data /opt/hirebridge/certs /app/ext
-chown hirebridge:hirebridge /opt/hirebridge/data /opt/hirebridge/certs
-RC
+          echo "--- Install binary ---"
+          ssh $SSH_OPTS $SSH_USER@$SSH_HOST "sudo mv /tmp/hirebridge.new /opt/hirebridge/hirebridge && sudo chmod +x /opt/hirebridge/hirebridge && sudo chown hirebridge:hirebridge /opt/hirebridge/hirebridge && sudo mkdir -p /opt/hirebridge/data /opt/hirebridge/certs /app/ext && sudo chown hirebridge:hirebridge /opt/hirebridge/data /opt/hirebridge/certs"
 
-      - name: Write config and restart
+      - name: Write config
+        env:
+          SMTP_PASS: ${{ secrets.HIREBRIDGE_SMTP_PASSWORD }}
+        run: |
+          cat > /tmp/hirebridge.env <<EOF
+          HB_BASE_URL=https://hirebridge.dev
+          HB_LISTEN=:8080
+          HB_DB_PATH=/opt/hirebridge/data/hirebridge.db
+          HB_VEC0_PATH=/app/ext/vec0.so
+          HB_EMBED_DIM=384
+          HB_TLS_DOMAIN=hirebridge.dev
+          HB_MAILER_PROVIDER=smtp
+          HB_SMTP_HOST=smtp.purelymail.com
+          HB_SMTP_PORT=587
+          HB_SMTP_USER=noreply@hirebridge.dev
+          HB_SMTP_PASS=${SMTP_PASS}
+          HB_SMTP_FROM=noreply@hirebridge.dev
+          HB_FEDERATION_ENABLED=true
+          HB_FEDERATION_PORT=:8400
+          HB_FEDERATION_INSTANCE_NAME=hirebridge-dev
+          HB_FEDERATION_KEY_PATH=/opt/hirebridge/data/federation_key.json
+          HB_FEDERATION_ENDPOINT=http://hirebridge.dev:8400
+          HB_FEDERATION_DISCOVERY_URL=http://hirebridge.dev:8400
+          HB_FEDERATION_SYNC_INTERVAL=5m
+EOF
+          sed -i 's/^          //' /tmp/hirebridge.env
+
+      - name: Upload config and restart
         env:
           SSH_HOST: ${{ secrets.DEPLOY_HOST }}
           SSH_USER: ${{ secrets.DEPLOY_USER }}
         run: |
-          SSH="ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10"
-
-          $SSH $SSH_USER@$SSH_HOST "sudo tee /opt/hirebridge/.env > /dev/null" <<ENVEOF
-HB_BASE_URL=https://hirebridge.dev
-HB_LISTEN=:8080
-HB_DB_PATH=/opt/hirebridge/data/hirebridge.db
-HB_VEC0_PATH=/app/ext/vec0.so
-HB_EMBED_DIM=384
-HB_TLS_DOMAIN=hirebridge.dev
-HB_MAILER_PROVIDER=smtp
-HB_SMTP_HOST=smtp.purelymail.com
-HB_SMTP_PORT=587
-HB_SMTP_USER=noreply@hirebridge.dev
-HB_SMTP_PASS=${{ secrets.HIREBRIDGE_SMTP_PASSWORD }}
-HB_SMTP_FROM=noreply@hirebridge.dev
-HB_FEDERATION_ENABLED=true
-HB_FEDERATION_PORT=:8400
-HB_FEDERATION_INSTANCE_NAME=hirebridge-dev
-HB_FEDERATION_KEY_PATH=/opt/hirebridge/data/federation_key.json
-HB_FEDERATION_ENDPOINT=http://hirebridge.dev:8400
-HB_FEDERATION_DISCOVERY_URL=http://hirebridge.dev:8400
-HB_FEDERATION_SYNC_INTERVAL=5m
-ENVEOF
-
-          $SSH $SSH_USER@$SSH_HOST "sudo chmod 600 /opt/hirebridge/.env && sudo chown hirebridge:hirebridge /opt/hirebridge/.env && sudo systemctl restart hirebridge"
+          SSH_OPTS="-o StrictHostKeyChecking=no -o ConnectTimeout=10"
+          scp $SSH_OPTS /tmp/hirebridge.env $SSH_USER@$SSH_HOST:/tmp/hirebridge.env
+          ssh $SSH_OPTS $SSH_USER@$SSH_HOST "sudo cp /tmp/hirebridge.env /opt/hirebridge/.env && sudo chmod 600 /opt/hirebridge/.env && sudo chown hirebridge:hirebridge /opt/hirebridge/.env && sudo systemctl start hirebridge"
 
       - name: Health check
         env:
