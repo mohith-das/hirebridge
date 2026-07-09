@@ -8,12 +8,26 @@
 </head>
 <body>
 <nav class="navbar">
-  <a href="/" class="nav-brand">HireBridge</a>
-  <a href="/docs">Docs</a>
-  <form method="post" action="/auth/logout" style="display:inline">
-  <button type="submit" class="nav-btn">Log Out</button>
-  </form>
+  <a href="/" class="nav-brand">
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="url(#blue-grad)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+      <defs>
+        <linearGradient id="blue-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" style="stop-color:#00c6ff" />
+          <stop offset="100%" style="stop-color:#0072ff" />
+        </linearGradient>
+      </defs>
+      <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line>
+    </svg>
+    HireBridge
+  </a>
+  <div class="nav-links">
+    <a href="/docs">Docs</a>
+    <form method="post" action="/auth/logout" style="display:inline">
+      <button type="submit" class="nav-btn">Log Out</button>
+    </form>
+  </div>
 </nav>
+<div class="container glass-panel" style="margin-top: 2rem;">
 <h1>Recruiter Dashboard</h1>
 
 <h2>MCP API Key</h2>
@@ -48,5 +62,6 @@
 <p style="margin-top:2rem">
 <a href="/dashboard/talent">Talent Dashboard</a>
 </p>
+</div>
 </body>
 </html>

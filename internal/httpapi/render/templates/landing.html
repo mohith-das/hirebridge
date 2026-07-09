@@ -7,21 +7,55 @@
 <link rel="stylesheet" href="/static/brutalist.css">
 </head>
 <body>
+<div class="bg-gradient"></div>
 <nav class="navbar">
-  <a href="/" class="nav-brand">HireBridge</a>
-  <a href="/docs">Docs</a>
+  <a href="/" class="nav-brand">
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="url(#blue-grad)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+      <defs>
+        <linearGradient id="blue-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" style="stop-color:#00c6ff" />
+          <stop offset="100%" style="stop-color:#0072ff" />
+        </linearGradient>
+      </defs>
+      <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line>
+    </svg>
+    HireBridge
+  </a>
+  <div class="nav-links">
+    <a href="/docs">API Docs</a>
+  </div>
 </nav>
-<h1>HireBridge</h1>
-<p class="subtitle">The Decentralized AI Talent Bridge — connect your self-hosted recruiting tools and AI agents securely.</p>
 
-<h2>Log In</h2>
-<form method="post" action="/auth/request">
-<input type="email" name="email" placeholder="you@example.com" required autofocus>
-<button type="submit">Send Magic Link</button>
-</form>
+<main class="hero-container">
+  <div class="hero-content">
+    <h1 class="hero-title">Decentralized AI <br><span class="gradient-text">Talent Bridge</span></h1>
+    <p class="hero-subtitle">Connect your self-hosted recruiting tools and AI agents securely. Empower your talent search with the privacy and control of decentralization.</p>
+    
+    <div class="login-card glass-panel">
+      <h2>Log In or Sign Up</h2>
+      <p class="card-desc">No passwords needed. Just enter your email to get a magic link.</p>
+      <form method="post" action="/auth/request" class="login-form">
+        <input type="email" name="email" placeholder="you@example.com" required autofocus>
+        <button type="submit" class="btn-primary">Send Magic Link</button>
+      </form>
+      <div class="login-footer">
+        <small>A one-time secure link will be sent to your inbox. No tracking.</small>
+      </div>
+    </div>
+  </div>
 
-<p style="margin-top:2rem;color:#888;">
-  <small>No passwords. No tracking. A one-time link will be sent to your inbox.</small>
-</p>
+  <div class="features-grid">
+    <div class="feature-card glass-panel">
+      <div class="feature-icon">🔍</div>
+      <h3>For Recruiters</h3>
+      <p>Log in with your email to access the <strong>Recruiter Dashboard</strong>. Generate an MCP API Key instantly and integrate with Claude Desktop to privately search self-hosted talent nodes.</p>
+    </div>
+    <div class="feature-card glass-panel">
+      <div class="feature-icon">🚀</div>
+      <h3>For Talent</h3>
+      <p>Sign up via device authorization directly from your CLI tools (e.g. LivingCV). Manage your connected nodes from the <strong>Talent Dashboard</strong> and maintain full ownership of your data.</p>
+    </div>
+  </div>
+</main>
 </body>
 </html>

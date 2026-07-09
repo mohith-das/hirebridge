@@ -4,46 +4,63 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>HireBridge — Device Verification</title>
-<style>
-:root{font-family:system-ui,sans-serif;background:#111;color:#eee;line-height:1.5}
-body{max-width:480px;margin:4rem auto;padding:0 1rem}
-h1{font-size:1.5rem;border-bottom:2px solid #444;padding-bottom:.5rem}
-p{margin:1rem 0}
-code{background:#222;padding:.15em .4em;border-radius:4px;font-size:1.2rem;letter-spacing:.15em}
-input,button{box-sizing:border-box;width:100%;padding:.75rem;margin:.5rem 0;border:1px solid #444;background:#222;color:#eee;font-size:1rem}
-button{background:#eee;color:#111;cursor:pointer;font-weight:600}
-button:hover{background:#fff}
-.success{color:#0f0}
-.error{color:#f44}
-</style>
+<link rel="stylesheet" href="/static/brutalist.css">
 </head>
 <body>
-<h1>HireBridge</h1>
-{{if .Approved}}
-<p class="success"><strong>Device approved.</strong> Return to your CLI — it will receive the token shortly.</p>
-{{else if .Error}}
-<p class="error">{{.Error}}</p>
-{{else if .UserCode}}
-<p>Enter the code shown in your terminal:</p>
-<p><code>{{.UserCode}}</code></p>
-{{if .LoggedIn}}
-<form method="post" action="/device/approve">
-<input type="hidden" name="uc" value="{{.UserCode}}">
-<button type="submit">Approve this device</button>
-</form>
-{{else}}
-<form method="post" action="/auth/request">
-<input type="hidden" name="uc" value="{{.UserCode}}">
-<input type="email" name="email" placeholder="you@example.com" required autofocus>
-<button type="submit">Send Magic Link</button>
-</form>
-{{end}}
-{{else}}
-<p>Enter the verification code from your CLI:</p>
-<form method="get" action="/device">
-<input type="text" name="uc" placeholder="XXXX-XXXX" required autofocus pattern="[A-Z0-9]{4}-[A-Z0-9]{4}">
-<button type="submit">Verify</button>
-</form>
-{{end}}
+<div class="bg-gradient"></div>
+<nav class="navbar">
+  <a href="/" class="nav-brand">
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="url(#blue-grad)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+      <defs>
+        <linearGradient id="blue-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" style="stop-color:#00c6ff" />
+          <stop offset="100%" style="stop-color:#0072ff" />
+        </linearGradient>
+      </defs>
+      <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line>
+    </svg>
+    HireBridge
+  </a>
+  <div class="nav-links">
+    <a href="/docs">Docs</a>
+    {{if .Email}}
+    <form method="post" action="/auth/logout" style="display:inline">
+      <button type="submit" class="nav-btn">Log Out ({{.Email}})</button>
+    </form>
+    {{end}}
+  </div>
+</nav>
+
+<div class="container">
+  <div class="login-card glass-panel">
+    <h2>Device Verification</h2>
+    {{if .Approved}}
+    <p class="success"><strong>Device approved.</strong> Return to your CLI — it will receive the token shortly.</p>
+    {{else if .Error}}
+    <p class="error">{{.Error}}</p>
+    {{else if .UserCode}}
+    <p class="card-desc">Enter the code shown in your terminal:</p>
+    <pre style="text-align:center; font-size:1.5rem; letter-spacing:0.2em;">{{.UserCode}}</pre>
+    {{if .LoggedIn}}
+    <form method="post" action="/device/approve" class="login-form">
+    <input type="hidden" name="uc" value="{{.UserCode}}">
+    <button type="submit" class="btn-primary">Approve this device</button>
+    </form>
+    {{else}}
+    <form method="post" action="/auth/request" class="login-form">
+    <input type="hidden" name="uc" value="{{.UserCode}}">
+    <input type="email" name="email" placeholder="you@example.com" required autofocus>
+    <button type="submit" class="btn-primary">Send Magic Link</button>
+    </form>
+    {{end}}
+    {{else}}
+    <p class="card-desc">Enter the verification code from your CLI:</p>
+    <form method="get" action="/device" class="login-form">
+    <input type="text" name="uc" placeholder="XXXX-XXXX" required autofocus pattern="[A-Z0-9]{4}-[A-Z0-9]{4}">
+    <button type="submit" class="btn-primary">Verify</button>
+    </form>
+    {{end}}
+  </div>
+</div>
 </body>
 </html>
