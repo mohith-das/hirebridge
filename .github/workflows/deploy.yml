@@ -51,30 +51,32 @@ jobs:
         env:
           SMTP_PASS: ${{ secrets.HIREBRIDGE_SMTP_PASSWORD }}
           ADMIN_EMAIL: ${{ secrets.HIREBRIDGE_NODE_ADMIN_EMAIL }}
+        # NOTE: no heredoc here — an unindented terminator breaks the YAML
+        # block scalar (the workflow failed to parse for every run before
+        # this was switched to a brace group).
         run: |
-          cat > /tmp/hirebridge.env <<EOF
-          HB_BASE_URL=https://hirebridge.dev
-          HB_LISTEN=:8080
-          HB_DB_PATH=/opt/hirebridge/data/hirebridge.db
-          HB_VEC0_PATH=/app/ext/vec0.so
-          HB_EMBED_DIM=384
-          HB_TLS_DOMAIN=hirebridge.dev
-          HB_MAILER_PROVIDER=smtp
-          HB_SMTP_HOST=smtp.purelymail.com
-          HB_SMTP_PORT=587
-          HB_SMTP_USER=noreply@hirebridge.dev
-          HB_SMTP_PASS=${SMTP_PASS}
-          HB_SMTP_FROM=noreply@hirebridge.dev
-          HB_FEDERATION_ENABLED=true
-          HB_FEDERATION_PORT=:8400
-          HB_FEDERATION_INSTANCE_NAME=hirebridge-dev
-          HB_FEDERATION_KEY_PATH=/opt/hirebridge/data/federation_key.json
-          HB_FEDERATION_ENDPOINT=http://hirebridge.dev:8400
-          HB_FEDERATION_DISCOVERY_URL=http://hirebridge.dev:8400
-          HB_FEDERATION_SYNC_INTERVAL=5m
-          HB_ADMIN_EMAIL=${ADMIN_EMAIL}
-EOF
-          sed -i 's/^          //' /tmp/hirebridge.env
+          {
+            echo "HB_BASE_URL=https://hirebridge.dev"
+            echo "HB_LISTEN=:8080"
+            echo "HB_DB_PATH=/opt/hirebridge/data/hirebridge.db"
+            echo "HB_VEC0_PATH=/app/ext/vec0.so"
+            echo "HB_EMBED_DIM=384"
+            echo "HB_TLS_DOMAIN=hirebridge.dev"
+            echo "HB_MAILER_PROVIDER=smtp"
+            echo "HB_SMTP_HOST=smtp.purelymail.com"
+            echo "HB_SMTP_PORT=587"
+            echo "HB_SMTP_USER=noreply@hirebridge.dev"
+            echo "HB_SMTP_PASS=${SMTP_PASS}"
+            echo "HB_SMTP_FROM=noreply@hirebridge.dev"
+            echo "HB_FEDERATION_ENABLED=true"
+            echo "HB_FEDERATION_PORT=:8400"
+            echo "HB_FEDERATION_INSTANCE_NAME=hirebridge-dev"
+            echo "HB_FEDERATION_KEY_PATH=/opt/hirebridge/data/federation_key.json"
+            echo "HB_FEDERATION_ENDPOINT=http://hirebridge.dev:8400"
+            echo "HB_FEDERATION_DISCOVERY_URL=http://hirebridge.dev:8400"
+            echo "HB_FEDERATION_SYNC_INTERVAL=5m"
+            echo "HB_ADMIN_EMAIL=${ADMIN_EMAIL}"
+          } > /tmp/hirebridge.env
 
       - name: Upload config and restart
         env:
