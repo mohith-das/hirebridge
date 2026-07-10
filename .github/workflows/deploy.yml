@@ -92,5 +92,8 @@ jobs:
           SSH_HOST: ${{ secrets.DEPLOY_HOST }}
           SSH_USER: ${{ secrets.DEPLOY_USER }}
         run: |
+          # HTTPS must be probed with the real hostname as SNI — autocert has no
+          # cert for "localhost" (that's a TLS handshake error, curl exit 35).
+          # --resolve pins the name to loopback so the probe stays on-box.
           ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 $SSH_USER@$SSH_HOST \
-            "sleep 2 && curl -sf http://localhost:80/healthz && echo ' HTTP' && curl -sfk https://localhost/healthz && echo ' HTTPS'"
+            "sleep 2 && curl -sf http://localhost:80/healthz && echo ' HTTP' && curl -sf --resolve hirebridge.dev:443:127.0.0.1 https://hirebridge.dev/healthz && echo ' HTTPS'"
