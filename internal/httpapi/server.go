@@ -32,6 +32,7 @@ type ServerConfig struct {
 	MagicTTL      time.Duration
 	AdminSessions *middleware.AdminSessions
 	AdminPending  *middleware.AdminPendingLinks
+	OutboxWake    chan struct{}
 	SendMagicLink func(email, link string) error
 }
 
@@ -138,7 +139,7 @@ func (s *Server) build() http.Handler {
 		r.With(csrfMw, adminMw).Post("/admin/peers/{id}/revoke", adminH.RevokePeer)
 	}
 
-	mcpSrv := mcp.NewMCPServer(s.cfg.SearchSvc, s.cfg.DB, s.cfg.BaseURL, s.cfg.MCPEndpoint)
+	mcpSrv := mcp.NewMCPServer(s.cfg.SearchSvc, s.cfg.DB, s.cfg.OutboxWake, s.cfg.Logger, s.cfg.BaseURL, s.cfg.MCPEndpoint)
 
 	r.Get("/.well-known/oauth-protected-resource", mcpSrv.ServeHTTP)
 

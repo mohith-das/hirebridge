@@ -1,3 +1,6 @@
+//go:build sqlite_fts5
+// +build sqlite_fts5
+
 package service
 
 import (
@@ -31,6 +34,20 @@ func ingestTestDB(t *testing.T) *sql.DB {
 	if _, err := db.Exec(string(schema)); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
+	// Later migrations only extend the schema and are required by
+	// downstream code (e.g. nodes.intro_secret). Apply them too.
+	for _, mig := range []string{
+		"../../internal/store/schema/migrations/003_intro_secret.up.sql",
+		"../../internal/store/schema/migrations/004_intro_recruiter.up.sql",
+	} {
+		s, err := os.ReadFile(mig)
+		if err != nil {
+			t.Fatalf("read %s: %v", mig, err)
+		}
+		if _, err := db.Exec(string(s)); err != nil {
+			t.Fatalf("migrate %s: %v", mig, err)
+		}
+	}
 
 	// vec0 native SQL functions are not loaded in test; CreateVirtualTables is skipped.
 	// snapshots_fts is a virtual table, so create it without vec0 triggers.
@@ -45,7 +62,7 @@ func ingestTestDB(t *testing.T) *sql.DB {
 func TestSnapshotingest_SignedSnapshotAcceptedAndTamperedRejected(t *testing.T) {
 	db := ingestTestDB(t)
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
-	svc := NewIngestService(db, logger)
+	svc := NewIngestService(db, logger, 0)
 
 	pub, priv, _ := ed25519.GenerateKey(rand.Reader)
 	nodeID := repo.NewID()

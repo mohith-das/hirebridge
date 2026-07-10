@@ -2,6 +2,7 @@ package handler
 
 import (
 	"encoding/json"
+	"errors"
 	"io"
 	"log/slog"
 	"net/http"
@@ -30,7 +31,7 @@ func (h *IngestHandler) Snapshot(w http.ResponseWriter, r *http.Request) {
 	}
 
 	candidatePart := struct {
-		CandidateID string  `json:"candidate_id"`
+		CandidateID string `json:"candidate_id"`
 	}{}
 	if err := json.Unmarshal(body, &candidatePart); err != nil {
 		http.Error(w, `{"error":"invalid_json"}`, http.StatusBadRequest)
@@ -48,6 +49,13 @@ func (h *IngestHandler) Snapshot(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.Svc.Process(nodeID, &input); err != nil {
+		if errors.Is(err, service.ErrEmbedDimMismatch) {
+			h.Logger.WarnContext(r.Context(), "ingest rejected: embedding dim mismatch", "error", err, "node_id", nodeID)
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+			return
+		}
 		h.Logger.ErrorContext(r.Context(), "ingest failed", "error", err, "node_id", nodeID)
 		http.Error(w, `{"error":"ingest_failed"}`, http.StatusInternalServerError)
 		return

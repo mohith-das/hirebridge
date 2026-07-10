@@ -17,6 +17,7 @@ import (
 	"hirebridge/internal/httpapi"
 	"hirebridge/internal/httpapi/middleware"
 	"hirebridge/internal/logging"
+	"hirebridge/internal/outbox"
 	"hirebridge/internal/service"
 	"hirebridge/internal/store"
 	"hirebridge/internal/store/schema"
@@ -66,8 +67,11 @@ func main() {
 	}, logger)
 
 	authSvc := auth.NewService(db, mailer, cfg.BaseURL, cfg.MagicTTL)
-	ingestSvc := service.NewIngestService(db, logger)
+	ingestSvc := service.NewIngestService(db, logger, cfg.EmbedDim)
 	searchSvc := service.NewSearchService(db, logger, cfg.EmbedDim)
+
+	outboxWorker := outbox.NewWorker(db, logger, outbox.Config{})
+	outboxWake := outboxWorker.WakeChannel()
 
 	fedCfg := federation.LoadConfig(cfg)
 	if fedCfg.Enabled {
@@ -116,11 +120,14 @@ func main() {
 		MagicTTL:      cfg.MagicTTL,
 		AdminSessions: adminSessions,
 		AdminPending:  adminPending,
+		OutboxWake:    outboxWake,
 		SendMagicLink: mailer.SendMagicLink,
 	})
 
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()
+
+	go outboxWorker.Run(ctx)
 
 	if cfg.TLSDomain != "" {
 		if err := os.MkdirAll("certs", 0700); err != nil {

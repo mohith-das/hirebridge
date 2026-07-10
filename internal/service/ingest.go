@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 
@@ -11,13 +12,22 @@ import (
 	"hirebridge/internal/store/repo"
 )
 
+// ErrEmbedDimMismatch is returned by IngestService.Process when the caller
+// supplied an embedding whose dimension differs from HB_EMBED_DIM. The HTTP
+// layer surfaces this as 400 so a misconfigured broadcasting node gets an
+// actionable signal rather than a silent vec0 warning.
+var ErrEmbedDimMismatch = errors.New("embedding dimension mismatch")
+
 type IngestService struct {
-	DB     *sql.DB
-	Logger *slog.Logger
+	DB       *sql.DB
+	Logger   *slog.Logger
+	EmbedDim int
 }
 
-func NewIngestService(db *sql.DB, logger *slog.Logger) *IngestService {
-	return &IngestService{DB: db, Logger: logger}
+// NewIngestService constructs an IngestService. embedDim=0 disables
+// dimension validation (legacy behaviour); pass HB_EMBED_DIM in production.
+func NewIngestService(db *sql.DB, logger *slog.Logger, embedDim int) *IngestService {
+	return &IngestService{DB: db, Logger: logger, EmbedDim: embedDim}
 }
 
 type SnapshotInput struct {
@@ -59,6 +69,12 @@ func (s *IngestService) Process(nodeID string, input *SnapshotInput) error {
 			"node_id", nodeID,
 			"candidate_id", input.CandidateID,
 		)
+	}
+
+	if len(input.Embedding) > 0 && s.EmbedDim > 0 {
+		if got := len(input.Embedding[0]); got != s.EmbedDim {
+			return fmt.Errorf("%w: got %d, want %d", ErrEmbedDimMismatch, got, s.EmbedDim)
+		}
 	}
 
 	payloadJSON := string(input.Payload)

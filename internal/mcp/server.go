@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
@@ -15,12 +16,18 @@ import (
 )
 
 type MCPServer struct {
-	SearchSvc *service.SearchService
-	DB        *sql.DB
+	SearchSvc  *service.SearchService
+	DB         *sql.DB
+	OutboxWake chan<- struct{}
+	Logger     *slog.Logger
 }
 
-func NewMCPServer(searchSvc *service.SearchService, db *sql.DB, baseURL string, endpointPath string) *server.StreamableHTTPServer {
-	s := &MCPServer{SearchSvc: searchSvc, DB: db}
+// NewMCPServer constructs the MCP server. outboxWake is a non-blocking signal
+// channel used to nudge the introduction outbox worker after a fresh request
+// is queued; it may be nil, in which case the worker falls back to its poll
+// interval only.
+func NewMCPServer(searchSvc *service.SearchService, db *sql.DB, outboxWake chan<- struct{}, logger *slog.Logger, baseURL string, endpointPath string) *server.StreamableHTTPServer {
+	s := &MCPServer{SearchSvc: searchSvc, DB: db, OutboxWake: outboxWake, Logger: logger}
 
 	mcpServer := server.NewMCPServer(
 		"HireBridge",
@@ -68,9 +75,11 @@ func (s *MCPServer) registerTools(mcpServer *server.MCPServer) {
 
 	mcpServer.AddTool(
 		mcp.NewTool("request_introduction",
-			mcp.WithDescription("Request an introduction to a candidate. Pings the candidate's edge node inbox."),
-			mcp.WithString("candidate_id", mcp.Required(), mcp.Description("The candidate ID")),
-			mcp.WithString("recruiter_identity", mcp.Required(), mcp.Description("Your name, company, and contact info")),
+			mcp.WithDescription("Queue an introduction request to a candidate. The HireBridge outbox HMAC-signs the payload with the candidate's LivingCV intro_secret and POSTs it to that node's /api/inbox."),
+			mcp.WithString("candidate_id", mcp.Required(), mcp.Description("The candidate ID returned by search_talent")),
+			mcp.WithString("recruiter_name", mcp.Required(), mcp.Description("Recruiter's full name")),
+			mcp.WithString("recruiter_email", mcp.Required(), mcp.Description("Recruiter's contact email")),
+			mcp.WithString("recruiter_company", mcp.Description("Recruiter's company (optional)")),
 		),
 		s.handleRequestIntroduction,
 	)
@@ -121,7 +130,13 @@ func (s *MCPServer) handleGetTalentProfile(ctx context.Context, req mcp.CallTool
 
 func (s *MCPServer) handleRequestIntroduction(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	candidateID, _ := req.RequireString("candidate_id")
-	recruiterIdentity, _ := req.RequireString("recruiter_identity")
+	recruiterName, _ := req.RequireString("recruiter_name")
+	recruiterEmail, _ := req.RequireString("recruiter_email")
+	recruiterCompany, _ := req.RequireString("recruiter_company")
+
+	if candidateID == "" || recruiterName == "" || recruiterEmail == "" {
+		return mcp.NewToolResultError("candidate_id, recruiter_name, recruiter_email are required"), nil
+	}
 
 	recruiterUserID := middleware.UserIDFromContext(ctx)
 
@@ -135,23 +150,48 @@ func (s *MCPServer) handleRequestIntroduction(ctx context.Context, req mcp.CallT
 
 	nodeID := snap.NodeID
 
+	// Resolve the delivery target BEFORE we queue so the tool result can tell
+	// the caller whether the request will actually go anywhere. The worker
+	// re-resolves on every attempt, so this is purely informational.
+	target, err := repo.ResolveDeliveryTarget(s.DB, nodeID)
+	if err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("resolve target: %v", err)), nil
+	}
+
 	requestID := repo.NewID()
-	if err := repo.InsertIntroductionRequest(s.DB, requestID, candidateID, recruiterUserID, nodeID); err != nil {
+	if err := repo.InsertIntroductionRequest(s.DB, requestID, candidateID, recruiterUserID, nodeID, recruiterName, recruiterEmail, recruiterCompany); err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("failed to queue introduction: %v", err)), nil
 	}
 	if err := repo.InsertAuditLog(s.DB, recruiterUserID, "intro_requested", candidateID); err != nil {
 		s.SearchSvc.Logger.Warn("audit write failed", "error", err)
 	}
 
+	if s.OutboxWake != nil {
+		select {
+		case s.OutboxWake <- struct{}{}:
+		default:
+		}
+	}
+
 	result := map[string]any{
-		"request_id":          requestID,
-		"status":              "queued",
-		"candidate_id":        candidateID,
-		"recruiter_identity":  recruiterIdentity,
-		"node_id":             nodeID,
-		"delivered":           false,
+		"request_id":    requestID,
+		"status":        "queued",
+		"candidate_id":  candidateID,
+		"node_id":       nodeID,
+		"deliverable":   target != nil,
+		"delivery_path": deliveryPath(target),
+	}
+	if target == nil {
+		result["delivery_reason"] = "no active LivingCV node with intro_secret for this candidate's owner"
 	}
 
 	jsonBytes, _ := json.Marshal(result)
 	return mcp.NewToolResultText(string(jsonBytes)), nil
+}
+
+func deliveryPath(t *repo.DeliveryTarget) string {
+	if t == nil {
+		return ""
+	}
+	return t.EndpointURL + "/api/inbox"
 }

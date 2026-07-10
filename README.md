@@ -52,7 +52,7 @@ HireBridge is designed to run on **the smallest possible machine**—1 vCPU, 1 G
 |------|-------------|
 | `search_talent(query, limit, query_vector?)` | BM25 FTS5 recall + optional vec0 KNN re-rank → ranked candidate pointers |
 | `get_talent_profile(candidate_id)` | Returns the full cached career packet with its ed25519 signature |
-| `request_introduction(candidate_id, recruiter_identity)` | Dispatches an introduction request to the candidate's edge node inbox |
+| `request_introduction(candidate_id, recruiter_name, recruiter_email, recruiter_company?)` | Queues a structured introduction request to the candidate's edge node inbox. The HireBridge outbox HMAC-signs the payload with the candidate's LivingCV `intro_secret` and POSTs it to that node's `/api/inbox` with exponential-backoff retries. |
 
 ---
 
@@ -71,6 +71,90 @@ HireBridge is designed to run on **the smallest possible machine**—1 vCPU, 1 G
 2. **Admin panel (manual):** the operator seeds a single `HB_ADMIN_EMAIL` and authenticates to `/admin` via magic link (request a sign-in link → click it → session cookie for ~2 h). The admin identity is provisioned at deploy time only — it is **not** a row in the `users` table and cannot be created or authenticated via the normal magic-link or device flows. The link tokens live in process memory under a `sync.Mutex` (decoupled from the `magic_tokens` DB table used by regular users), expire in `HB_MAGIC_TTL` (default 15m, shared with the user-flow knob), and are single-use. The login response is uniform so it doesn't leak whether the submitted email matched. Sessions are stored in process memory under a separate `sync.Mutex`, scoped to the `/admin/` cookie path, and expire after ~2 hours. If `HB_ADMIN_EMAIL` is unset (or whitespace), every `/admin/*` route returns 404.
 
 In short: **trust is established by an out-of-band artifact (the join secret) or by an out-of-band human (the admin panel), never by the request itself.**
+
+---
+
+## Edge-node onboarding (jobops + LivingCV)
+
+Both edge nodes (jobops and LivingCV) register themselves with HireBridge through the same canonical device-authorization flow used by CLI clients. The flow is OAuth 2.1 Device Authorization Grant (RFC 8628) — there is no separate admin path for nodes.
+
+### The three calls
+
+1. **`POST /auth/device`** (JSON body)
+
+   ```json
+   { "node_type": "jobops", "endpoint_url": "https://jobops.example.com", "public_key": "<64-hex ed25519>" }
+   ```
+
+   `public_key` is **required for jobops** (signatures on `/ingest/snapshot` are verified against it) and **omitted by LivingCV** (LivingCV signs with its own per-deployment key; HireBridge only needs its public key for snapshot ingest). `endpoint_url` is the node's public base URL — for LivingCV that is the portfolio site itself.
+
+   Response: `{device_code, user_code, verification_uri, verification_uri_complete, expires_in, interval}`.
+
+2. **`POST /auth/request`** (form-encoded)
+
+   The node triggers the email itself: `email=<operator email>&uc=<user_code>`. Clicking the emailed link approves the device session.
+
+3. **`POST /auth/token`** (form-encoded)
+
+   `grant_type=urn:ietf:params:oauth:grant-type:device_code&device_code=<code>`.
+
+   While pending: HTTP 400 + `{"error":"authorization_pending"}`. On success: `{access_token, node_id, token_type:"Bearer", scope:"node:push", intro_secret}`.
+
+### `intro_secret`
+
+`intro_secret` is a 64-char hex string returned alongside the node's bearer token. It is **not** a credential that grants access to HireBridge — it is an outbound-delivery signing key. HireBridge uses it to HMAC-SHA256 introduction requests before POSTing them to the LivingCV node's `/api/inbox`.
+
+A fresh `intro_secret` is generated **every time** a node completes the device flow. LivingCV persists the latest value alongside its token and uses it to verify incoming `X-HireBridge-Signature` headers. Re-running the device flow for the same node **rotates** the secret, invalidating any previously-captured outbox payloads.
+
+## Introduction delivery contract
+
+When `request_introduction` is called, HireBridge:
+
+1. Validates that `candidate_id` exists and the recruiter supplied `recruiter_name` + `recruiter_email` (and optionally `recruiter_company`).
+2. Resolves the **delivery target**: `snapshot.node → that node's user → the user's active LivingCV node with non-empty endpoint_url AND intro_secret`.
+3. Queues a row in `introduction_requests` (`status='queued'`, `next_attempt_at=NULL`) and returns immediately with `status: "queued"` plus a `deliverable: true/false` flag.
+4. Nudges the background outbox worker (started by `cmd/hirebridge`).
+
+The outbox worker then signs and delivers:
+
+- **Endpoint:** `POST {livingcv_endpoint_url}/api/inbox`
+- **Body (raw bytes signed exactly as sent):**
+
+  ```json
+  {
+    "request_id":        "<intro row id>",
+    "candidate_id":      "<32-hex canonical id>",
+    "recruiter_identity": { "name": "…", "email": "…", "company": "…" },
+    "ts":                "<RFC3339 timestamp>"
+  }
+  ```
+
+- **Header:** `X-HireBridge-Signature: hex(hmac_sha256(intro_secret, raw_body_bytes))`
+
+- **Timeout:** 10s per request. 2xx ⇒ row marked `delivered`. Other statuses ⇒ retry.
+- **Retry policy:** exponential backoff `1m / 5m / 30m`, max 5 attempts. After the last failure the row is `status='failed'` with `last_error` populated.
+- **No target:** if the user has no active LivingCV node with `endpoint_url` + `intro_secret`, the row is `status='undeliverable'` immediately and is never retried.
+
+The canonical row states are `queued → retrying → delivered | failed | undeliverable`. Only `queued` and `retrying` rows are eligible for delivery.
+
+### Walkthrough (matches the integration test)
+
+```bash
+# 1. Register a fake LivingCV — receives intro_secret in the token response.
+curl -sX POST localhost:8080/auth/device \
+  -H 'Content-Type: application/json' \
+  -d '{"node_type":"LivingCV","endpoint_url":"http://localhost:9000"}'
+
+# 2. Approve + poll until success; grab intro_secret from the response.
+
+# 3. Register a fake jobops the same way; push a signed snapshot to /ingest/snapshot.
+
+# 4. Call request_introduction via MCP — tool result includes status:"queued",
+#    deliverable:true, delivery_path:"http://localhost:9000/api/inbox".
+
+# 5. The outbox worker signs the body and POSTs to that URL with header
+#    X-HireBridge-Signature: hex(hmac_sha256(intro_secret, body)).
+```
 
 ---
 

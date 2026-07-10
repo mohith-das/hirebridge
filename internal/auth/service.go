@@ -98,6 +98,10 @@ func (s *Service) approveDevice(codeHash, userID string) (*CallbackResult, error
 	if err := repo.SetNodeUser(s.DB, ds.NodeID.String, userID); err != nil {
 		return nil, fmt.Errorf("set node user: %w", err)
 	}
+	introSecret, err := repo.RotateNodeIntroSecret(s.DB, ds.NodeID.String)
+	if err != nil {
+		return nil, fmt.Errorf("rotate intro secret: %w", err)
+	}
 
 	_ = repo.InsertAuditLog(s.DB, userID, "device_approved", ds.NodeID.String)
 
@@ -107,6 +111,7 @@ func (s *Service) approveDevice(codeHash, userID string) (*CallbackResult, error
 		NodeID:         ds.NodeID.String,
 		UserID:         userID,
 		DeviceApproved: true,
+		IntroSecret:    introSecret,
 	}, nil
 }
 
@@ -189,6 +194,7 @@ func (s *Service) handlePollApproved(ds *repo.DeviceSession, codeHash string) (*
 
 	var rawNodeToken string
 	var nt *repo.APIToken
+	var introSecret string
 	if consumed.NodeID.Valid {
 		rawNodeToken, nt, err = repo.CreateAPIToken(s.DB, userID, &consumed.NodeID.String, "device-node", "node:push")
 		if err != nil {
@@ -200,11 +206,16 @@ func (s *Service) handlePollApproved(ds *repo.DeviceSession, codeHash string) (*
 		if err := repo.SetNodeUser(s.DB, consumed.NodeID.String, userID); err != nil {
 			return nil, fmt.Errorf("set node user: %w", err)
 		}
+		introSecret, err = repo.RotateNodeIntroSecret(s.DB, consumed.NodeID.String)
+		if err != nil {
+			return nil, fmt.Errorf("rotate intro secret: %w", err)
+		}
 		return &TokenPollResponse{
 			AccessToken: rawNodeToken,
 			NodeID:      consumed.NodeID.String,
 			TokenType:   "Bearer",
 			Scope:       "node:push",
+			IntroSecret: introSecret,
 		}, nil
 	}
 
@@ -236,6 +247,7 @@ type CallbackResult struct {
 	UserID         string
 	DeviceApproved bool
 	PendingDevice  bool
+	IntroSecret    string
 }
 
 type DeviceInitResponse struct {
@@ -253,6 +265,7 @@ type TokenPollResponse struct {
 	TokenType   string `json:"token_type,omitempty"`
 	ExpiresIn   int    `json:"expires_in,omitempty"`
 	Scope       string `json:"scope,omitempty"`
+	IntroSecret string `json:"intro_secret,omitempty"`
 	Error       string `json:"error,omitempty"`
 	Interval    int    `json:"interval,omitempty"`
 }
